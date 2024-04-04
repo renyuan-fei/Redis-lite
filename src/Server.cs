@@ -12,12 +12,14 @@ TcpListener server = new TcpListener(IPAddress.Any, 6379);
 server.Start();
 
 Socket socket = server.AcceptSocket();
-byte[ ] requestData = new byte[1024];
 
-socket.Receive(requestData);
-byte[ ] responseData = Encoding.UTF8.GetBytes(responseTxt);
-
-socket.Send(responseData);
+while (socket.Connected)
+{
+  byte[ ] requestData = new byte[1024];
+  socket.Receive(requestData);
+  byte[ ] responseData = Encoding.UTF8.GetBytes(responseTxt);
+  socket.Send(responseData);
+}
 
 socket.Close();
 

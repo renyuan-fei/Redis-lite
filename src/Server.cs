@@ -1,10 +1,24 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 
-// You can use print statements as follows for debugging, they'll be visible when running tests.
+// const data
+const string responseTxt = "+PONG\r\n";
+
 Console.WriteLine("Logs from your program will appear here!");
 
-// Uncomment this block to pass the first stage
+// TCP server
 TcpListener server = new TcpListener(IPAddress.Any, 6379);
 server.Start();
-server.AcceptSocket(); // wait for client
+
+Socket socket = server.AcceptSocket();
+byte[ ] requestData = new byte[1024];
+
+socket.Receive(requestData);
+byte[ ] responseData = Encoding.UTF8.GetBytes(responseTxt);
+
+socket.Send(responseData);
+
+socket.Close();
+
+server.Stop();

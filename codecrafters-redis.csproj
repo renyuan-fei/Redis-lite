@@ -3,10 +3,9 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <RootNamespace>Redis-lite</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>Redis-lite</AssemblyName>
+    <PackageId>codecrafters-redis</PackageId>
   </PropertyGroup>
 
 </Project>

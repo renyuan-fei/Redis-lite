@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>codecrafters-redis</PackageId>
+    <RootNamespace>codecrafters_redis</RootNamespace>
   </PropertyGroup>
 
 </Project>

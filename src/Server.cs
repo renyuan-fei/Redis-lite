@@ -2,39 +2,63 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-// const data
-const string responseTxt = "+PONG\r\n";
-
-Console.WriteLine("Logs from your program will appear here!");
+using codecrafters_redis;
 
 // TCP server
-TcpListener server = new TcpListener(IPAddress.Any, 6379);
-server.Start();
+IPAddress ipAddress = IPAddress.Any;
+const int port = 6379;
+TcpListener server = new TcpListener(ipAddress, port);
 
-while (true)
+// start server
+try
 {
-  // create a new socket instance
-  Socket socket = server.AcceptSocket();
+  server.Start();
+  Console.WriteLine("Redis-lite server is running on port 6379");
 
-  // start a new thread to handle the socket
-  new Thread(() => HandleSocket(socket)).Start();
+  while (true)
+  {
+    // create a new socket instance
+    Socket socket = server.AcceptSocket();
+
+    // start a new thread to handle the socket
+    new Thread(() => HandleSocket(socket)).Start();
+  }
+}
+catch (Exception ex)
+{
+  Console.WriteLine(ex.Message);
+}
+finally
+{
+  server.Stop();
 }
 
-void HandleSocket(Socket socket)
+return;
+
+async void HandleSocket(Socket socket)
 {
+  byte[ ] buffer = new byte[4096];
+
   while (socket.Connected)
   {
-    byte[] buffer = new byte[4096];
+    // get the data from the socket
+    int received = await socket.ReceiveAsync(buffer, SocketFlags.None);
 
-    int bytesRead = socket.Receive(buffer);
+    // Check if any data was received
+    if (received == 0)
+    {
+      break;
+    }
 
-    // check if we got a valid response
-    if (bytesRead == 0) continue;
+    var request = new RespRequest(buffer);
+    var response = new RespResponse(request);
 
-    byte[ ] responseData = Encoding.UTF8.GetBytes(responseTxt);
+    // Encoding the response
+    byte[ ] responseData = Encoding.UTF8.GetBytes(response.GetResponse());
 
-    socket.Send(responseData);
+    await socket.SendAsync(responseData,SocketFlags.None);
   }
+
   // close the socket after sending the response
   socket.Close();
 }

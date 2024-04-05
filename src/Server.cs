@@ -25,6 +25,7 @@ void HandleSocket(Socket socket)
   while (socket.Connected)
   {
     byte[] buffer = new byte[4096];
+
     int bytesRead = socket.Receive(buffer);
 
     // check if we got a valid response
@@ -33,8 +34,7 @@ void HandleSocket(Socket socket)
     byte[ ] responseData = Encoding.UTF8.GetBytes(responseTxt);
 
     socket.Send(responseData);
-
-    // close the socket after sending the response
-    socket.Close();
   }
+  // close the socket after sending the response
+  socket.Close();
 }

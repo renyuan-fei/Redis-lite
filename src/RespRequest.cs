@@ -1,6 +1,7 @@
 using System.Text;
 
 using codecrafters_redis.Enums;
+using codecrafters_redis.Interface;
 using codecrafters_redis.Utils;
 
 namespace codecrafters_redis;
@@ -17,7 +18,7 @@ namespace codecrafters_redis;
  * So, this command is an array with two elements, the first element is the string "echo", and the second element is the string "hey". In Redis, this represents an ECHO command with the argument "hey".
  */
 
-public class RespRequest
+public class RespRequest: IRespRequest
 {
   private readonly byte[ ]         _bytes;
   public           RespCommandType CommandType { get; private set; }
@@ -46,7 +47,7 @@ public class RespRequest
     return commandString.Split("\r\n");
   }
 
-  private int GetCommandArrayLength(IEnumerable<string> items)
+  private static int GetCommandArrayLength(IEnumerable<string> items)
   {
     var respArrayString = items.First();
     var arrayLengthString = new string(respArrayString.Skip(1).ToArray());

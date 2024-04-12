@@ -3,5 +3,7 @@ namespace codecrafters_redis.Enums;
 public enum RespCommandType
 {
   Ping,
-  Echo
+  Echo,
+  Set,
+  Get,
 }

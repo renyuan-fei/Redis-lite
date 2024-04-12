@@ -9,4 +9,8 @@
     <RootNamespace>codecrafters_redis</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Folder Include="src\Type\" />
+  </ItemGroup>
+
 </Project>

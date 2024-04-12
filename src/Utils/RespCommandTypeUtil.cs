@@ -2,7 +2,7 @@ using codecrafters_redis.Enums;
 
 namespace codecrafters_redis.Utils;
 
-public class RespCommandTypeUtil
+public static class RespCommandTypeUtil
 {
   public static Dictionary<string, RespCommandType> CreateCommandTypeDict()
   {

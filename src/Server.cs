@@ -9,6 +9,9 @@ IPAddress ipAddress = IPAddress.Any;
 const int port = 6379;
 TcpListener server = new TcpListener(ipAddress, port);
 
+// Redis store
+Dictionary<string, byte[]> simpleStore = new Dictionary<string, byte[]>();
+
 // start server
 try
 {
@@ -50,11 +53,12 @@ async void HandleSocket(Socket socket)
       break;
     }
 
-    var request = new RespRequest(buffer);
-    var response = new RespResponse(request);
+    var factory = new RespCommandFactory(buffer, simpleStore);
+    var command = factory.Create();
+    var response = command.Execute();
 
     // Encoding the response
-    byte[ ] responseData = Encoding.UTF8.GetBytes(response.GetResponse());
+    byte[ ] responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
 
     await socket.SendAsync(responseData,SocketFlags.None);
   }

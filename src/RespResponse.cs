@@ -1,27 +1,49 @@
+using System.ComponentModel.DataAnnotations;
+
 using codecrafters_redis.Enums;
+using codecrafters_redis.Interface;
 
 namespace codecrafters_redis;
 
-public class RespResponse
+public record RespResponse(RespDataType DataType, string Message) : IRespResponse
 {
-  private const char   SimpleStringPrefix = '+';
-  private const string Suffix             = "\r\n";
+  private const string Suffix = "\r\n";
 
-  private readonly RespRequest _request;
-
-  public RespResponse(RespRequest request) { _request = request; }
-
-  // get the response
-  public string GetResponse()
+  private readonly Dictionary<RespDataType, char> _respTypeDict = new()
   {
-    switch (_request.CommandType)
+      { RespDataType.SimpleString, '+' },
+      { RespDataType.SimpleError, '-' },
+      { RespDataType.Integer, ':' },
+      { RespDataType.BulkString, '$' },
+      { RespDataType.Array, '*' },
+      { RespDataType.Null, '_' },
+      { RespDataType.Boolean, '#' },
+      { RespDataType.Double, ',' },
+      { RespDataType.BigNumber, '(' },
+      { RespDataType.BulkError, '!' },
+      { RespDataType.VerbatimString, '=' },
+      { RespDataType.Map, '%' },
+      { RespDataType.Set, '~' },
+      { RespDataType.Push, '>' },
+  };
+
+  public string GetCliResponse() { return $"{GetPrefix()}{Message}{Suffix}"; }
+
+  private string GetPrefix()
+  {
+    var sign = _respTypeDict[DataType];
+    var additionalPrefix = string.Empty;
+
+    switch (DataType)
     {
-      case RespCommandType.Ping :
-        return $"{SimpleStringPrefix}PONG{Suffix}";
-      case RespCommandType.Echo :
-        return $"{SimpleStringPrefix}{_request.Arguments.FirstOrDefault()}{Suffix}";
-      default :
-        throw new ArgumentOutOfRangeException($"Unexpected Command type {_request.CommandType}");
+      case RespDataType.BulkString :
+        additionalPrefix = $"{Message.Length}{Suffix}";
+
+        break;
     }
+
+    return string.IsNullOrEmpty(additionalPrefix)
+        ? $"{sign}"
+        : $"{sign}{additionalPrefix}";
   }
 }

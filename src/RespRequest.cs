@@ -18,11 +18,12 @@ namespace codecrafters_redis;
  * So, this command is an array with two elements, the first element is the string "echo", and the second element is the string "hey". In Redis, this represents an ECHO command with the argument "hey".
  */
 
-public class RespRequest: IRespRequest
+public class RespRequest : IRespRequest
 {
   private readonly byte[ ]         _bytes;
   public           RespCommandType CommandType { get; private set; }
   public           List<string>    Arguments   { get; set; } = [];
+
   private readonly Dictionary<string, RespCommandType> _commandType = RespCommandTypeUtil.CreateCommandTypeDict();
 
   public RespRequest(byte[ ] bytes)
@@ -41,9 +42,10 @@ public class RespRequest: IRespRequest
     GetCommandAndArguments(arguments, arrayLength);
   }
 
-  private string[] SplitBytesIntoString()
+  private string[ ] SplitBytesIntoString()
   {
     var commandString = Encoding.UTF8.GetString(_bytes);
+
     return commandString.Split("\r\n");
   }
 
@@ -60,7 +62,9 @@ public class RespRequest: IRespRequest
     return arrayLength;
   }
 
-  private void GetCommandAndArguments(IReadOnlyCollection<string> arguments, int arrayLength)
+  private void GetCommandAndArguments(
+      IReadOnlyCollection<string> arguments,
+      int                         arrayLength)
   {
     for (var i = 0; i < arrayLength; i++)
     {
@@ -77,6 +81,7 @@ public class RespRequest: IRespRequest
       if (i == 0)
       {
         CommandType = ParseCommandType(argument);
+
         continue;
       }
 

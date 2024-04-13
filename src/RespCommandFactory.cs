@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 using codecrafters_redis.Commands;
 using codecrafters_redis.Enums;
 using codecrafters_redis.Interface;
@@ -6,10 +8,10 @@ namespace codecrafters_redis;
 
 public class RespCommandFactory
 {
-  private readonly RespRequest                 _request;
-  private readonly Dictionary<string, byte[ ]> _simpleStore;
+  private readonly RespRequest                           _request;
+  private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
 
-  public RespCommandFactory(byte[ ] buffer, Dictionary<string, byte[ ]> simpleStore)
+  public RespCommandFactory(byte[ ] buffer, ConcurrentDictionary<string, byte[ ]> simpleStore)
   {
     _request = new RespRequest(buffer);
     _simpleStore = simpleStore;

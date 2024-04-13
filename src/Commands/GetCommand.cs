@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 
 using codecrafters_redis.Enums;
@@ -7,10 +8,10 @@ namespace codecrafters_redis.Commands;
 
 public class GetCommand : IRespCommand
 {
-  private readonly Dictionary<string, byte[ ]> _workingSet;
-  private readonly string                      _name;
+  private readonly ConcurrentDictionary<string, byte[ ]> _workingSet;
+  private readonly string                                _name;
 
-  public GetCommand(Dictionary<string, byte[ ]> workingSet, string name)
+  public GetCommand(ConcurrentDictionary<string, byte[ ]> workingSet, string name)
   {
     _workingSet = workingSet;
     _name = name;

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 
 using codecrafters_redis.Enums;
@@ -7,14 +8,20 @@ namespace codecrafters_redis.Commands;
 
 public class SetCommand : IRespCommand
 {
-  private readonly Dictionary<string, byte[ ]> _workingSet;
+  private readonly ConcurrentDictionary<string, byte[ ]> _workingSet;
   private readonly string                      _name;
   private readonly string                      _value;
+  private readonly DateTime                    _expiry;
 
-  public SetCommand(Dictionary<string, byte[ ]> workingSet, string name, string value)
+  public SetCommand(
+      ConcurrentDictionary<string, byte[ ]> workingSet,
+      string                      name,
+      string                      value,
+      DateTime                    expiry = default)
   {
     _workingSet = workingSet;
     _name = name;
+    _expiry = expiry;
     _value = value;
   }
 

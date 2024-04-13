@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -10,7 +11,7 @@ const int port = 6379;
 TcpListener server = new TcpListener(ipAddress, port);
 
 // Redis store
-Dictionary<string, byte[]> simpleStore = new Dictionary<string, byte[]>();
+ConcurrentDictionary<string, byte[ ]> simpleStore = new ConcurrentDictionary<string, byte[ ]>();
 
 // start server
 try
@@ -48,10 +49,7 @@ async void HandleSocket(Socket socket)
     int received = await socket.ReceiveAsync(buffer, SocketFlags.None);
 
     // Check if any data was received
-    if (received == 0)
-    {
-      break;
-    }
+    if (received == 0) { break; }
 
     var factory = new RespCommandFactory(buffer, simpleStore);
     var command = factory.Create();
@@ -60,7 +58,7 @@ async void HandleSocket(Socket socket)
     // Encoding the response
     byte[ ] responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
 
-    await socket.SendAsync(responseData,SocketFlags.None);
+    await socket.SendAsync(responseData, SocketFlags.None);
   }
 
   // close the socket after sending the response

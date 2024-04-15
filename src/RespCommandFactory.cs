@@ -3,31 +3,40 @@ using System.Collections.Concurrent;
 using codecrafters_redis.Commands;
 using codecrafters_redis.Enums;
 using codecrafters_redis.Interface;
+using codecrafters_redis.Service;
 
 namespace codecrafters_redis;
 
 public class RespCommandFactory
 {
+  private readonly ExpiredTasks                          _expiredTasks;
   private readonly RespRequest                           _request;
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
 
-  public RespCommandFactory(byte[ ] buffer, ConcurrentDictionary<string, byte[ ]> simpleStore)
+  public RespCommandFactory(byte[ ] buffer, ConcurrentDictionary<string, byte[ ]> simpleStore, ExpiredTasks expiredTasks)
   {
     _request = new RespRequest(buffer);
     _simpleStore = simpleStore;
+    _expiredTasks = expiredTasks;
   }
 
   public IRespCommand Create()
   {
-    return _request.CommandType switch
+    switch (_request.CommandType)
     {
-        RespCommandType.Ping => new PingCommand(),
-        RespCommandType.Echo => new EchoCommand(_request.Arguments[0]),
-        RespCommandType.Set => new SetCommand(_simpleStore,
-                                              _request.Arguments[0],
-                                              _request.Arguments[1]),
-        RespCommandType.Get => new GetCommand(_simpleStore, _request.Arguments[0]),
-        _ => throw new Exception($"Unexpected command type {_request.CommandType}")
-    };
+      case RespCommandType.Ping : return new PingCommand();
+      case RespCommandType.Echo : return new EchoCommand(_request.Arguments[0]);
+      case RespCommandType.Set :
+        if (_request.Arguments.Count > 2 && _request.Arguments[2].Equals("px", StringComparison.CurrentCultureIgnoreCase))
+        {
+          _expiredTasks.AddExpirationTask(_request.Arguments[0], int.Parse(_request.Arguments[3]));
+        }
+        return new SetCommand(_simpleStore, _request.Arguments[0], _request.Arguments[1]);
+
+      case RespCommandType.Get :
+        return new GetCommand(_simpleStore, _request.Arguments[0]);
+
+      default : throw new Exception($"Unexpected command type {_request.CommandType}");
+    }
   }
 }

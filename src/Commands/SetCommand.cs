@@ -9,19 +9,16 @@ namespace codecrafters_redis.Commands;
 public class SetCommand : IRespCommand
 {
   private readonly ConcurrentDictionary<string, byte[ ]> _workingSet;
-  private readonly string                      _name;
-  private readonly string                      _value;
-  private readonly DateTime                    _expiry;
+  private readonly string                                _name;
+  private readonly string                                _value;
 
   public SetCommand(
       ConcurrentDictionary<string, byte[ ]> workingSet,
-      string                      name,
-      string                      value,
-      DateTime                    expiry = default)
+      string                                name,
+      string                                value)
   {
     _workingSet = workingSet;
     _name = name;
-    _expiry = expiry;
     _value = value;
   }
 

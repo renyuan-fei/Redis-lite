@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 
 using codecrafters_redis;
+using codecrafters_redis.Service;
 
 // TCP server
 IPAddress ipAddress = IPAddress.Any;
@@ -17,6 +18,7 @@ ConcurrentDictionary<string, byte[ ]> simpleStore = new ConcurrentDictionary<str
 try
 {
   server.Start();
+  var expiredTask = new ExpiredTasks(simpleStore);
   Console.WriteLine("Redis-lite server is running on port 6379");
 
   while (true)
@@ -25,7 +27,7 @@ try
     Socket socket = server.AcceptSocket();
 
     // start a new thread to handle the socket
-    new Thread(() => HandleSocket(socket)).Start();
+    new Thread(() => HandleSocket(socket,expiredTask)).Start();
   }
 }
 catch (Exception ex)
@@ -39,7 +41,7 @@ finally
 
 return;
 
-async void HandleSocket(Socket socket)
+async void HandleSocket(Socket socket, ExpiredTasks expiredTask)
 {
   byte[ ] buffer = new byte[4096];
 
@@ -51,7 +53,7 @@ async void HandleSocket(Socket socket)
     // Check if any data was received
     if (received == 0) { break; }
 
-    var factory = new RespCommandFactory(buffer, simpleStore);
+    var factory = new RespCommandFactory(buffer, simpleStore, expiredTask);
     var command = factory.Create();
     var response = command.Execute();
 

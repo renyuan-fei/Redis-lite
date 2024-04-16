@@ -13,7 +13,7 @@ public class ExpiredTasks
     public ExpiredTasks(ConcurrentDictionary<string, byte[]> workingSet)
     {
         _workingSet = workingSet;
-        StartExpirationTask();
+        _timer = StartExpirationTask();
     }
 
     public void AddExpirationTask(string key, int expiry)
@@ -32,9 +32,14 @@ public class ExpiredTasks
         }
     }
 
-    private void StartExpirationTask()
+    private Timer StartExpirationTask()
     {
-        _timer = new Timer(_ => DeleteExpiredKeys(), null, TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(50));
+        return new Timer(_ => DeleteExpiredKeys(), null, TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(50));
+    }
+
+    public void DeleteKey(string key)
+    {
+        _workingSet.TryRemove(key, out _);
     }
 
     private void DeleteExpiredKeys()
@@ -46,11 +51,12 @@ public class ExpiredTasks
             var now = DateTime.UtcNow;
 
             var expiredItems = _expirationQueue.Where(kvp => kvp.Key <= now).ToList();
+
             foreach (var expiredItem in expiredItems)
             {
                 foreach (var key in expiredItem.Value)
                 {
-                    _workingSet.TryRemove(key, out _);
+                    DeleteKey(key);
                 }
                 _expirationQueue.Remove(expiredItem.Key);
             }
@@ -63,7 +69,7 @@ public class ExpiredTasks
 
                 foreach (var expiredKey in expiredKeys)
                 {
-                    _workingSet.TryRemove(expiredKey, out _);
+                    DeleteKey(expiredKey);
                 }
 
                 if ((double)expiredKeys.Count / keysToCheck.Count > 0.25)
@@ -71,6 +77,15 @@ public class ExpiredTasks
                     DeleteExpiredKeys();
                 }
             }
+        }
+    }
+
+    public bool IsExpired(string key)
+    {
+        lock (_expirationQueue)
+        {
+            var now = DateTime.UtcNow;
+            return _expirationQueue.Any(kvp => kvp.Key <= now && kvp.Value.Contains(key));
         }
     }
 }

@@ -27,11 +27,14 @@ public class RespCommandFactory
       case RespCommandType.Ping : return new PingCommand();
       case RespCommandType.Echo : return new EchoCommand(_request.Arguments[0]);
       case RespCommandType.Set :
+        Console.WriteLine("Set command");
+        var setResult = new SetCommand(_simpleStore, _request.Arguments[0], _request.Arguments[1]);
         if (_request.Arguments.Count > 2 && _request.Arguments[2].Equals("px", StringComparison.CurrentCultureIgnoreCase))
         {
+          Console.WriteLine("Set expiration");
           _expiredTasks.AddExpirationTask(_request.Arguments[0], int.Parse(_request.Arguments[3]));
         }
-        return new SetCommand(_simpleStore, _request.Arguments[0], _request.Arguments[1]);
+        return setResult;
 
       case RespCommandType.Get :
         return new GetCommand(_simpleStore, _request.Arguments[0]);

@@ -32,15 +32,12 @@ public record RespResponse(RespDataType DataType, string Message) : IRespRespons
   private string GetPrefix()
   {
     var sign = _respTypeDict[DataType];
-    var additionalPrefix = string.Empty;
 
-    switch (DataType)
+    var additionalPrefix = DataType switch
     {
-      case RespDataType.BulkString :
-        additionalPrefix = $"{Message.Length}{Suffix}";
-
-        break;
-    }
+        RespDataType.BulkString => $"{Message.Length}{Suffix}",
+        _                       => string.Empty
+    };
 
     return string.IsNullOrEmpty(additionalPrefix)
         ? $"{sign}"

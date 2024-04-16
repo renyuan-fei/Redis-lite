@@ -20,7 +20,7 @@ public class ExpiredTasks
     {
         lock (_expirationQueue)
         {
-            var expiryDate = DateTime.UtcNow.AddSeconds(expiry);
+            var expiryDate = DateTime.UtcNow.AddMilliseconds(expiry);
             if (_expirationQueue.TryGetValue(expiryDate, out var value))
             {
                 value.Add(key);

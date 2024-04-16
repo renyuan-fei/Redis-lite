@@ -16,7 +16,7 @@ public record RespResponse(RespDataType DataType, string Message) : IRespRespons
       { RespDataType.Integer, ':' },
       { RespDataType.BulkString, '$' },
       { RespDataType.Array, '*' },
-      { RespDataType.Null, '_' },
+      { RespDataType.Null, '$' },
       { RespDataType.Boolean, '#' },
       { RespDataType.Double, ',' },
       { RespDataType.BigNumber, '(' },
@@ -42,6 +42,6 @@ public record RespResponse(RespDataType DataType, string Message) : IRespRespons
 
     return string.IsNullOrEmpty(additionalPrefix)
         ? $"{sign}"
-        : $"{sign}{additionalPrefix}";
+        : $"{sign}{additionalPrefix}";;
   }
 }

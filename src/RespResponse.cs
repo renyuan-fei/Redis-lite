@@ -36,7 +36,7 @@ public record RespResponse(RespDataType DataType, string Message) : IRespRespons
     var additionalPrefix = DataType switch
     {
         RespDataType.BulkString => $"{Message.Length}{Suffix}",
-        RespDataType.Null => $"-1{Suffix}",
+        RespDataType.Null => "-1",
         _                       => string.Empty
     };
 

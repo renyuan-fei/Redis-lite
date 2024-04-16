@@ -21,7 +21,7 @@ public class GetCommand : IRespCommand
   {
     if (!_workingSet.TryGetValue(_name, out byte[ ]? value))
     {
-      return new RespResponse(RespDataType.Null, string.Empty);
+      return new RespResponse(RespDataType.BulkString, string.Empty);
     }
 
     return new RespResponse(RespDataType.BulkString, Encoding.UTF8.GetString(value));

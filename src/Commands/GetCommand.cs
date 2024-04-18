@@ -21,14 +21,17 @@ public class GetCommand : IRespCommand
 
   public RespResponse Execute()
   {
-    if (_workingSet.TryGetValue(_name, out byte[ ]? value)) return new RespResponse(RespDataType.BulkString, Encoding.UTF8.GetString(value));
-
     if (_expiredTasks.IsExpired(_name))
     {
       _expiredTasks.DeleteKey(_name);
+      return new RespResponse(RespDataType.Null, string.Empty);
+    }
+
+    if (_workingSet.TryGetValue(_name, out byte[ ]? value))
+    {
+      return new RespResponse(RespDataType.BulkString, Encoding.UTF8.GetString(value));
     }
 
     return new RespResponse(RespDataType.Null, string.Empty);
-
   }
 }

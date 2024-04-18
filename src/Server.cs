@@ -8,7 +8,14 @@ using codecrafters_redis.Service;
 
 // TCP server
 IPAddress ipAddress = IPAddress.Any;
-const int port = 6379;
+int port = 6379;
+
+if (args.Length > 1) {
+  if (args[0] == "--port") {
+    port = Convert.ToInt32(args[1]);
+  }
+}
+
 TcpListener server = new TcpListener(ipAddress, port);
 
 // Redis store

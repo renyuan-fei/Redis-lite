@@ -6,4 +6,5 @@ public enum RespCommandType
   Echo,
   Set,
   Get,
+  Info
 }

@@ -12,12 +12,18 @@ public class RespCommandFactory
   private readonly ExpiredTasks                          _expiredTasks;
   private readonly RespRequest                           _request;
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
+  private readonly RedisServer                           _redisServer;
 
-  public RespCommandFactory(byte[ ] buffer, ConcurrentDictionary<string, byte[ ]> simpleStore, ExpiredTasks expiredTasks)
+  public RespCommandFactory(
+      byte[ ]                               buffer,
+      ConcurrentDictionary<string, byte[ ]> simpleStore,
+      ExpiredTasks                          expiredTasks,
+      RedisServer                           redisServer)
   {
     _request = new RespRequest(buffer);
     _simpleStore = simpleStore;
     _expiredTasks = expiredTasks;
+    _redisServer = redisServer;
   }
 
   public IRespCommand Create()
@@ -26,16 +32,24 @@ public class RespCommandFactory
     {
       case RespCommandType.Ping : return new PingCommand();
       case RespCommandType.Echo : return new EchoCommand(_request.Arguments[0]);
+
       case RespCommandType.Set :
-        var setResult = new SetCommand(_simpleStore, _request.Arguments[0], _request.Arguments[1]);
-        if (_request.Arguments.Count > 2 && _request.Arguments[2].Equals("px", StringComparison.CurrentCultureIgnoreCase))
+        var setResult =
+            new SetCommand(_simpleStore, _request.Arguments[0], _request.Arguments[1]);
+
+        if (_request.Arguments.Count > 2
+         && _request.Arguments[2].Equals("px", StringComparison.CurrentCultureIgnoreCase))
         {
-          _expiredTasks.AddExpirationTask(_request.Arguments[0], int.Parse(_request.Arguments[3]));
+          _expiredTasks.AddExpirationTask(_request.Arguments[0],
+                                          int.Parse(_request.Arguments[3]));
         }
+
         return setResult;
 
       case RespCommandType.Get :
         return new GetCommand(_simpleStore, _request.Arguments[0], _expiredTasks);
+
+      case RespCommandType.Info : return new InfoCommand(_redisServer);
 
       default : throw new Exception($"Unexpected command type {_request.CommandType}");
     }

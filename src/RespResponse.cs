@@ -40,10 +40,8 @@ public record RespResponse(RespDataType DataType, string Message) : IRespRespons
         _                       => string.Empty
     };
 
-    var tm = string.IsNullOrEmpty(additionalPrefix)
+    return string.IsNullOrEmpty(additionalPrefix)
         ? $"{sign}"
-        : $"{sign}{additionalPrefix}";
-    Console.WriteLine(tm);
-    return tm;
+        : $"{sign}{additionalPrefix}";;
   }
 }

@@ -3,27 +3,31 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
+using codecrafters_redis.Enums;
 using codecrafters_redis.Service;
 
 namespace codecrafters_redis;
 
 public class RedisServer
 {
+  private readonly RedisRole                             _role;
   private readonly IPAddress                             _ipAddress;
   private readonly int                                   _port;
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
   private readonly ExpiredTasks                          _expiredTask;
 
   public RedisServer(
-      ExpiredTasks                         expiredTask,
-      ConcurrentDictionary<string, byte[]> simpleStore,
-      int                                  port      = 6379,
-      IPAddress?                           ipAddress = null)
+      ExpiredTasks                          expiredTask,
+      ConcurrentDictionary<string, byte[ ]> simpleStore,
+      RedisRole                             role,
+      int                                   port      = 6379,
+      IPAddress?                            ipAddress = null)
   {
     _port = port;
     _ipAddress = ipAddress ?? IPAddress.Any;
     _expiredTask = expiredTask;
     _simpleStore = simpleStore;
+    _role = role;
   }
 
   public void Start()
@@ -77,8 +81,9 @@ public class RedisServer
 
   public string GetInfo()
   {
-    var info = new Dictionary<string, string>() {
-        { "role", "master" },
+    var info = new Dictionary<string, string>()
+    {
+        { "role", _role.ToString().ToLower() },
         // {"connected_slaves", "0"},
         // {"master_replid", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"},
         // {"master_repl_offset", "0"},
@@ -88,6 +93,7 @@ public class RedisServer
         // {"repl_backlog_first_byte_offset", "0"},
         // {"repl_backlog_histlen", ""},
     };
+
     return string.Join('\n', info.Select(x => $"{x.Key}:{x.Value}"));
   }
 }

@@ -12,6 +12,8 @@ namespace codecrafters_redis;
 
 public class RedisServer
 {
+  private readonly string                                _masterHost;
+  private readonly int                                   _masterPort;
   private readonly string                                _masterReplid;
   private readonly int                                   _masterReplOffset;
   private readonly RedisRole                             _role;
@@ -25,12 +27,16 @@ public class RedisServer
       ConcurrentDictionary<string, byte[ ]> simpleStore,
       RedisRole                             role,
       string                                masterReplid,
-      int                                masterReplOffset,
+      int                                   masterReplOffset,
       int                                   port,
-      IPAddress                            ipAddress)
+      IPAddress                             ipAddress,
+      string                                masterHost,
+      int                                   masterPort)
   {
     _port = port;
     _ipAddress = ipAddress;
+    _masterPort = masterPort;
+    _masterHost = masterHost;
     _expiredTask = expiredTask;
     _simpleStore = simpleStore;
     _role = role;
@@ -41,7 +47,7 @@ public class RedisServer
   public static RedisServer Create(
       ExpiredTasks                          expiredTask,
       ConcurrentDictionary<string, byte[ ]> simpleStore,
-      RedisConfig config
+      RedisConfig                           config
       )
   {
     return new RedisServer(expiredTask,
@@ -50,7 +56,9 @@ public class RedisServer
                            RandomStringGenerator.GenerateRandomString(40),
                            0,
                            config.Port,
-                           config.IpAddress);
+                           config.IpAddress,
+                           config.MasterHost,
+                           config.MasterPort);
   }
 
   public void Start()
@@ -63,6 +71,11 @@ public class RedisServer
       server.Start();
       Console.WriteLine($"Redis-lite server is running on port {_port}");
 
+      if (_role == RedisRole.Slave)
+      {
+        PingToMaster();
+      }
+
       while (true)
       {
         // create a new socket instance
@@ -72,8 +85,14 @@ public class RedisServer
         Task.Run(() => HandleSocket(socket, _expiredTask));
       }
     }
-    catch (Exception ex) { Console.WriteLine(ex.Message); }
-    finally { server.Stop(); }
+    catch (Exception ex)
+    {
+      Console.WriteLine(ex.Message);
+    }
+    finally
+    {
+      server.Stop();
+    }
   }
 
   async private Task HandleSocket(Socket socket, ExpiredTasks expiredTask)
@@ -109,7 +128,7 @@ public class RedisServer
         { "role", _role.ToString().ToLower() },
         // {"connected_slaves", "0"},
         { "master_replid", _masterReplid },
-        {"master_repl_offset", "0"},
+        { "master_repl_offset", "0" },
         // {"second_repl_offset", "-1"},
         // {"repl_backlog_active", "0"},
         // {"repl_backlog_size", "1048576"},
@@ -118,5 +137,18 @@ public class RedisServer
     };
 
     return string.Join('\n', info.Select(x => $"{x.Key}:{x.Value}"));
+  }
+
+  private void PingToMaster()
+  {
+    const string request = "*1\r\n$4\r\nping\r\n";
+
+    TcpClient tcpClient = new TcpClient(_masterHost, _masterPort);
+
+    NetworkStream stream = tcpClient.GetStream();
+
+    byte[ ] data = Encoding.ASCII.GetBytes(request);
+
+    stream.Write(data, 0, data.Length);
   }
 }

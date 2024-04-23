@@ -24,6 +24,8 @@ internal class OptionParser
 
         case "--replicaof" when i + 2 < args.Length :
           // config. = args[i + 1] + " " + args[i + 2];
+          config.MasterHost = args[i + 1];
+          config.MasterPort = int.Parse(args[i + 2]);
           config.Role = RedisRole.Slave; // change role to slave if --replicaof is specified
           i += 2;                        // skip next two items
 

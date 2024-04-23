@@ -10,4 +10,8 @@ public class RedisConfig
   public RedisRole Role { get; set; } = RedisRole.Master;
 
   public IPAddress IpAddress { get; set; } = IPAddress.Any;
+
+  public string MasterHost { get; set; } = "127.0.0.1";
+
+  public int MasterPort { get; set; } = 6379;
 }

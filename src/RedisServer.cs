@@ -74,6 +74,8 @@ public class RedisServer
       if (_role == RedisRole.Slave)
       {
         PingToMaster();
+        ReplConf(@"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n6380\r\n");
+        ReplConf(@"*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
       }
 
       while (true)
@@ -143,6 +145,17 @@ public class RedisServer
   {
     const string request = "*1\r\n$4\r\nping\r\n";
 
+    TcpClient tcpClient = new TcpClient(_masterHost, _masterPort);
+
+    NetworkStream stream = tcpClient.GetStream();
+
+    byte[ ] data = Encoding.ASCII.GetBytes(request);
+
+    stream.Write(data, 0, data.Length);
+  }
+
+  private void ReplConf(string request)
+  {
     TcpClient tcpClient = new TcpClient(_masterHost, _masterPort);
 
     NetworkStream stream = tcpClient.GetStream();

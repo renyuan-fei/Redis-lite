@@ -51,6 +51,8 @@ public class RespCommandFactory
 
       case RespCommandType.Info : return new InfoCommand(_redisServer);
 
+      case RespCommandType.ReplConf : return new ReplConfCommand();
+
       default : throw new Exception($"Unexpected command type {_request.CommandType}");
     }
   }

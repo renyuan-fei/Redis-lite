@@ -13,10 +13,8 @@ ConcurrentDictionary<string, byte[ ]> simpleStore = new ConcurrentDictionary<str
 
 var config = OptionParser.Parse(args);
 
-RedisServer server = new RedisServer(new ExpiredTasks(simpleStore),
-                                     simpleStore,
-                                     config.Role,
-                                     config.Port,
-                                     config.IpAddress);
+RedisServer server = RedisServer.Create(new ExpiredTasks(simpleStore),
+                                        simpleStore,
+                                        config);
 
 server.Start();

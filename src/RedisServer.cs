@@ -5,29 +5,52 @@ using System.Text;
 
 using codecrafters_redis.Enums;
 using codecrafters_redis.Service;
+using codecrafters_redis.Type;
+using codecrafters_redis.Utils;
 
 namespace codecrafters_redis;
 
 public class RedisServer
 {
+  private readonly string                                _masterReplid;
+  private readonly int                                   _masterReplOffset;
   private readonly RedisRole                             _role;
   private readonly IPAddress                             _ipAddress;
   private readonly int                                   _port;
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
   private readonly ExpiredTasks                          _expiredTask;
 
-  public RedisServer(
+  private RedisServer(
       ExpiredTasks                          expiredTask,
       ConcurrentDictionary<string, byte[ ]> simpleStore,
       RedisRole                             role,
-      int                                   port      = 6379,
-      IPAddress?                            ipAddress = null)
+      string                                masterReplid,
+      int                                masterReplOffset,
+      int                                   port,
+      IPAddress                            ipAddress)
   {
     _port = port;
-    _ipAddress = ipAddress ?? IPAddress.Any;
+    _ipAddress = ipAddress;
     _expiredTask = expiredTask;
     _simpleStore = simpleStore;
     _role = role;
+    _masterReplid = masterReplid;
+    _masterReplOffset = masterReplOffset;
+  }
+
+  public static RedisServer Create(
+      ExpiredTasks                          expiredTask,
+      ConcurrentDictionary<string, byte[ ]> simpleStore,
+      RedisConfig config
+      )
+  {
+    return new RedisServer(expiredTask,
+                           simpleStore,
+                           config.Role,
+                           RandomStringGenerator.GenerateRandomString(40),
+                           0,
+                           config.Port,
+                           config.IpAddress);
   }
 
   public void Start()
@@ -85,8 +108,8 @@ public class RedisServer
     {
         { "role", _role.ToString().ToLower() },
         // {"connected_slaves", "0"},
-        // {"master_replid", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"},
-        // {"master_repl_offset", "0"},
+        { "master_replid", _masterReplid },
+        {"master_repl_offset", "0"},
         // {"second_repl_offset", "-1"},
         // {"repl_backlog_active", "0"},
         // {"repl_backlog_size", "1048576"},

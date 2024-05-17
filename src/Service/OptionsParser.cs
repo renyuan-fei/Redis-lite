@@ -11,7 +11,6 @@ internal static class OptionParser
 
     for (int i = 0; i < args.Length; i++)
     {
-      Console.WriteLine(i + " " + args[i]);
       switch (args[i])
       {
         case "--port" when i + 1 < args.Length :

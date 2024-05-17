@@ -192,7 +192,6 @@ public class RedisServer
     byte[ ] buffer = new byte[1024];
     int bytesRead = await stream.ReadAsync(buffer);
     string response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-    Console.WriteLine("Received response: " + response);
   }
 
   async private Task ReplConf(string request)
@@ -208,6 +207,5 @@ public class RedisServer
     byte[ ] buffer = new byte[1024];
     int bytesRead = await stream.ReadAsync(buffer);
     string response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-    Console.WriteLine("Received response: " + response);
   }
 }

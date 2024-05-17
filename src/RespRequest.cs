@@ -56,6 +56,7 @@ public class RespRequest : IRespRequest
 
     if (!int.TryParse(arrayLengthString, out var arrayLength))
     {
+      Console.WriteLine($"Can not parse {arrayLengthString} to int, Error in RespRequest.cs: GetCommandArrayLength()");
       throw new Exception($"Can not parse {arrayLengthString} to int");
     }
 
@@ -87,6 +88,9 @@ public class RespRequest : IRespRequest
 
       Arguments.Add(argument);
     }
+
+    // Console.WriteLine("command type: " + CommandType);
+    // Console.WriteLine("arguments: " + string.Join(", ", Arguments));
   }
 
   // parses the command type from the argument

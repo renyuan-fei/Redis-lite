@@ -28,6 +28,7 @@ public class RespCommandFactory
 
   public IRespCommand Create()
   {
+    Console.WriteLine($"Received command {_request.CommandType}");
     switch (_request.CommandType)
     {
       case RespCommandType.Ping : return new PingCommand();

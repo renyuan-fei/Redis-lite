@@ -17,4 +17,4 @@ RedisServer server = RedisServer.Create(new ExpiredTasks(simpleStore),
                                         simpleStore,
                                         config);
 
-server.Start();
+await server.StartAsync();

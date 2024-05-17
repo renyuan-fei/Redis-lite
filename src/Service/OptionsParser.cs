@@ -3,7 +3,7 @@ using codecrafters_redis.Type;
 
 namespace codecrafters_redis.Service;
 
-internal class OptionParser
+internal static class OptionParser
 {
   public static RedisConfig Parse(string[ ] args)
   {
@@ -11,6 +11,7 @@ internal class OptionParser
 
     for (int i = 0; i < args.Length; i++)
     {
+      Console.WriteLine(i + " " + args[i]);
       switch (args[i])
       {
         case "--port" when i + 1 < args.Length :
@@ -22,14 +23,18 @@ internal class OptionParser
           break;
         }
 
-        case "--replicaof" when i + 2 < args.Length :
+        case "--replicaof" when i + 1 < args.Length :
+        {
           // config. = args[i + 1] + " " + args[i + 2];
-          config.MasterHost = args[i + 1];
-          config.MasterPort = int.Parse(args[i + 2]);
+          var result = args[i + 1].Split(' ');
+          config.MasterHost = result[0];
+          config.MasterPort = int.Parse(result[1]);
           config.Role = RedisRole.Slave; // change role to slave if --replicaof is specified
-          i += 2;                        // skip next two items
+
+          i += 1;                        // skip next two items
 
           break;
+        }
       }
     }
 

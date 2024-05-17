@@ -21,6 +21,8 @@ public class RedisServer
   private readonly int                                   _port;
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
   private readonly ExpiredTasks                          _expiredTask;
+  private readonly int                                   _initialTasks;
+  private readonly int                                   _maxTasks;
 
   private RedisServer(
       ExpiredTasks                          expiredTask,
@@ -31,7 +33,9 @@ public class RedisServer
       int                                   port,
       IPAddress                             ipAddress,
       string                                masterHost,
-      int                                   masterPort)
+      int                                   masterPort,
+      int                                   initialTasks,
+      int                                   maxTasks)
   {
     _port = port;
     _ipAddress = ipAddress;
@@ -42,6 +46,8 @@ public class RedisServer
     _role = role;
     _masterReplid = masterReplid;
     _masterReplOffset = masterReplOffset;
+    _initialTasks = initialTasks;
+    _maxTasks = maxTasks;
   }
 
   public static RedisServer Create(
@@ -58,12 +64,18 @@ public class RedisServer
                            config.Port,
                            config.IpAddress,
                            config.MasterHost,
-                           config.MasterPort);
+                           config.MasterPort,
+                           10,
+                           100
+                           );
   }
 
-  public void Start()
+  public async Task StartAsync()
   {
     TcpListener server = new TcpListener(_ipAddress, _port);
+
+    // Maximum number of concurrent tasks
+    SemaphoreSlim semaphore = new SemaphoreSlim(_initialTasks, _maxTasks);
 
     // start server
     try
@@ -73,23 +85,39 @@ public class RedisServer
 
       if (_role == RedisRole.Slave)
       {
-        PingToMaster();
-        ReplConf(@"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n6380\r\n");
-        ReplConf(@"*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
+        await PingToMaster();
+        await ReplConf("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n6380\r\n");
+        await ReplConf("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
       }
 
       while (true)
       {
-        // create a new socket instance
-        Socket socket = server.AcceptSocket();
+        // Wait for a free slot
+        await semaphore.WaitAsync();
 
-        // start a new task to handle the socket
-        Task.Run(() => HandleSocket(socket, _expiredTask));
+        // create a new socket instance
+        Socket socket = await server.AcceptSocketAsync();
+
+        // Process the connection in a separate task
+        _ = Task.Run(async () =>
+        {
+          try
+          {
+            await HandleSocket(socket, _expiredTask);
+          }
+          finally
+          {
+            semaphore.Release();
+          }
+        });
       }
     }
     catch (Exception ex)
     {
       Console.WriteLine(ex.Message);
+
+      // Release the semaphore if an exception occurs
+      semaphore.Release();
     }
     finally
     {
@@ -103,6 +131,14 @@ public class RedisServer
 
     while (socket.Connected)
     {
+      // Use the Poll method to check if the connection is still active
+      bool isConnected = socket.Connected && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
+
+      if (!isConnected)
+      {
+        break;
+      }
+
       // get the data from the socket
       int received = await socket.ReceiveAsync(buffer, SocketFlags.None);
 
@@ -141,7 +177,7 @@ public class RedisServer
     return string.Join('\n', info.Select(x => $"{x.Key}:{x.Value}"));
   }
 
-  private void PingToMaster()
+  async private Task PingToMaster()
   {
     const string request = "*1\r\n$4\r\nping\r\n";
 
@@ -151,10 +187,15 @@ public class RedisServer
 
     byte[ ] data = Encoding.ASCII.GetBytes(request);
 
-    stream.Write(data, 0, data.Length);
+    await stream.WriteAsync(data);
+
+    byte[ ] buffer = new byte[1024];
+    int bytesRead = await stream.ReadAsync(buffer);
+    string response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+    Console.WriteLine("Received response: " + response);
   }
 
-  private void ReplConf(string request)
+  async private Task ReplConf(string request)
   {
     TcpClient tcpClient = new TcpClient(_masterHost, _masterPort);
 
@@ -162,6 +203,11 @@ public class RedisServer
 
     byte[ ] data = Encoding.ASCII.GetBytes(request);
 
-    stream.Write(data, 0, data.Length);
+    await stream.WriteAsync(data);
+
+    byte[ ] buffer = new byte[1024];
+    int bytesRead = await stream.ReadAsync(buffer);
+    string response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+    Console.WriteLine("Received response: " + response);
   }
 }

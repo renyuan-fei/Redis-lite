@@ -14,7 +14,6 @@ public class RedisServer
 {
   private readonly string                                _masterHost;
   private readonly int                                   _masterPort;
-  private readonly string                                _masterReplid;
   private readonly int                                   _masterReplOffset;
   private readonly RedisRole                             _role;
   private readonly IPAddress                             _ipAddress;
@@ -24,6 +23,7 @@ public class RedisServer
   private readonly int                                   _initialTasks;
   private readonly int                                   _maxTasks;
   private          TcpClient                             _tcpClientToMaster;
+  public          string                                MasterReplid { get; }
 
   private RedisServer(
       ExpiredTasks                          expiredTask,
@@ -45,7 +45,7 @@ public class RedisServer
     _expiredTask = expiredTask;
     _simpleStore = simpleStore;
     _role = role;
-    _masterReplid = masterReplid;
+    MasterReplid = masterReplid;
     _masterReplOffset = masterReplOffset;
     _initialTasks = initialTasks;
     _maxTasks = maxTasks;
@@ -67,8 +67,7 @@ public class RedisServer
                            config.MasterHost,
                            config.MasterPort,
                            10,
-                           100
-                           );
+                           100);
   }
 
   public async Task StartAsync()
@@ -84,10 +83,7 @@ public class RedisServer
       server.Start();
       Console.WriteLine($"Redis-lite server is running on port {_port}");
 
-      if (_role == RedisRole.Slave)
-      {
-        await SendCommandsToMaster();
-      }
+      if (_role == RedisRole.Slave) { await SendCommandsToMaster(); }
 
       while (true)
       {
@@ -100,14 +96,8 @@ public class RedisServer
         // Process the connection in a separate task
         _ = Task.Run(async () =>
         {
-          try
-          {
-            await HandleSocket(socket, _expiredTask);
-          }
-          finally
-          {
-            semaphore.Release();
-          }
+          try { await HandleSocket(socket, _expiredTask); }
+          finally { semaphore.Release(); }
         });
       }
     }
@@ -118,10 +108,7 @@ public class RedisServer
       // Release the semaphore if an exception occurs
       semaphore.Release();
     }
-    finally
-    {
-      server.Stop();
-    }
+    finally { server.Stop(); }
   }
 
   async private Task HandleSocket(Socket socket, ExpiredTasks expiredTask)
@@ -131,12 +118,11 @@ public class RedisServer
     while (socket.Connected)
     {
       // Use the Poll method to check if the connection is still active
-      bool isConnected = socket.Connected && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
+      bool isConnected = socket.Connected
+                      && !(socket.Poll(1, SelectMode.SelectRead)
+                        && socket.Available == 0);
 
-      if (!isConnected)
-      {
-        break;
-      }
+      if (!isConnected) { break; }
 
       // get the data from the socket
       int received = await socket.ReceiveAsync(buffer, SocketFlags.None);
@@ -164,7 +150,7 @@ public class RedisServer
     {
         { "role", _role.ToString().ToLower() },
         // {"connected_slaves", "0"},
-        { "master_replid", _masterReplid },
+        { "master_replid", MasterReplid },
         { "master_repl_offset", "0" },
         // {"second_repl_offset", "-1"},
         // {"repl_backlog_active", "0"},
@@ -181,7 +167,11 @@ public class RedisServer
     _tcpClientToMaster = new TcpClient(_masterHost, _masterPort);
 
     await SendCommandToMaster("*1\r\n$4\r\nping\r\n");
-    await SendCommandToMaster($"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n{_port}\r\n");
+
+    await SendCommandToMaster($"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n{
+      _port
+    }\r\n");
+
     await SendCommandToMaster("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
     await SendCommandToMaster("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n");
   }

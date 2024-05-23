@@ -52,7 +52,7 @@ public class RespCommandFactory
 
       case RespCommandType.ReplConf : return new ReplConfCommand();
 
-      case RespCommandType.PSync : return new PSyncCommand();
+      case RespCommandType.PSync : return new PSyncCommand(_redisServer);
 
       default : throw new Exception($"Unexpected command type {_request.CommandType}");
     }

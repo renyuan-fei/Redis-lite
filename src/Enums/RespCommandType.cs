@@ -7,5 +7,6 @@ public enum RespCommandType
   Set,
   Get,
   Info,
-  ReplConf
+  ReplConf,
+  PSync
 }

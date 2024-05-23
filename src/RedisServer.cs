@@ -86,11 +86,7 @@ public class RedisServer
 
       if (_role == RedisRole.Slave)
       {
-        _tcpClientToMaster = new TcpClient(_masterHost, _masterPort);
-
-        await PingToMaster();
-        await ReplConf("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n6380\r\n");
-        await ReplConf("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
+        await SendCommandsToMaster();
       }
 
       while (true)
@@ -180,23 +176,17 @@ public class RedisServer
     return string.Join('\n', info.Select(x => $"{x.Key}:{x.Value}"));
   }
 
-  async private Task PingToMaster()
+  async private Task SendCommandsToMaster()
   {
-    const string request = "*1\r\n$4\r\nping\r\n";
+    _tcpClientToMaster = new TcpClient(_masterHost, _masterPort);
 
-    NetworkStream stream = _tcpClientToMaster.GetStream();
-
-    byte[ ] data = Encoding.ASCII.GetBytes(request);
-
-    await stream.WriteAsync(data);
-
-    byte[ ] buffer = new byte[1024];
-    int bytesRead = await stream.ReadAsync(buffer);
-    string response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-    Console.WriteLine(response);
+    await SendCommandToMaster("*1\r\n$4\r\nping\r\n");
+    await SendCommandToMaster("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n{_port}\r\n");
+    await SendCommandToMaster("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
+    await SendCommandToMaster("*3\\r\\n$5\\r\\nPSYNC\\r\\n$1\\r\\n?\\r\\n$2\\r\\n-1\\r\\n");
   }
 
-  async private Task ReplConf(string request)
+  async private Task SendCommandToMaster(string request)
   {
     NetworkStream stream = _tcpClientToMaster.GetStream();
 

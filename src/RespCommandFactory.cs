@@ -46,12 +46,13 @@ public class RespCommandFactory
 
         return setResult;
 
-      case RespCommandType.Get :
-        return new GetCommand(_simpleStore, _request.Arguments[0], _expiredTasks);
+      case RespCommandType.Get : return new GetCommand(_simpleStore, _request.Arguments[0], _expiredTasks);
 
       case RespCommandType.Info : return new InfoCommand(_redisServer);
 
       case RespCommandType.ReplConf : return new ReplConfCommand();
+
+      case RespCommandType.PSync : return new PSyncCommand();
 
       default : throw new Exception($"Unexpected command type {_request.CommandType}");
     }

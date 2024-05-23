@@ -23,6 +23,7 @@ public class RedisServer
   private readonly ExpiredTasks                          _expiredTask;
   private readonly int                                   _initialTasks;
   private readonly int                                   _maxTasks;
+  private          TcpClient                             _tcpClientToMaster;
 
   private RedisServer(
       ExpiredTasks                          expiredTask,
@@ -85,6 +86,8 @@ public class RedisServer
 
       if (_role == RedisRole.Slave)
       {
+        _tcpClientToMaster = new TcpClient(_masterHost, _masterPort);
+
         await PingToMaster();
         await ReplConf("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n6380\r\n");
         await ReplConf("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
@@ -181,9 +184,7 @@ public class RedisServer
   {
     const string request = "*1\r\n$4\r\nping\r\n";
 
-    TcpClient tcpClient = new TcpClient(_masterHost, _masterPort);
-
-    NetworkStream stream = tcpClient.GetStream();
+    NetworkStream stream = _tcpClientToMaster.GetStream();
 
     byte[ ] data = Encoding.ASCII.GetBytes(request);
 
@@ -197,9 +198,7 @@ public class RedisServer
 
   async private Task ReplConf(string request)
   {
-    TcpClient tcpClient = new TcpClient(_masterHost, _masterPort);
-
-    NetworkStream stream = tcpClient.GetStream();
+    NetworkStream stream = _tcpClientToMaster.GetStream();
 
     byte[ ] data = Encoding.ASCII.GetBytes(request);
 

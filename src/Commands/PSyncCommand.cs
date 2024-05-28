@@ -14,8 +14,7 @@ public class PSyncCommand : IRespCommand, IPostExecutionCommand
 
   public RespResponse Execute()
   {
-    return new RespResponse(RespDataType.SimpleString,
-                            $"FULLRESYNC {_redisServer.MasterReplid} 0");
+    return new RespResponse(RespDataType.SimpleString, $"FULLRESYNC {_redisServer.MasterReplid} 0");
   }
 
   public Action<Socket> PostExecutionAction => ExecutionAction;

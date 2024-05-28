@@ -136,16 +136,16 @@ public class RedisServer
       var command = factory.Create();
       var response = command.Execute();
 
+      // Encoding the response
+      var responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
+
+      await socket.SendAsync(responseData, SocketFlags.None);
+
       // If the command implements IPostExecutionCommand, execute the PostExecutionAction
       if (command is IPostExecutionCommand postExecutionCommand)
       {
         postExecutionCommand.PostExecutionAction?.Invoke(socket);
       }
-
-      // Encoding the response
-      var responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
-
-      await socket.SendAsync(responseData, SocketFlags.None);
     }
 
     // close the socket after sending the response

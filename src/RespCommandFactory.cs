@@ -36,7 +36,7 @@ public class RespCommandFactory
 
       case RespCommandType.Set :
         var setResult =
-            new SetCommand(_simpleStore, _request.Arguments[0], _request.Arguments[1]);
+            new SetCommand(_simpleStore, _request.Arguments[0], _request.Arguments[1],_redisServer);
 
         if (_request.Arguments.Count > 2
          && _request.Arguments[2].Equals("px", StringComparison.CurrentCultureIgnoreCase))

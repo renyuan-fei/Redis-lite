@@ -24,6 +24,7 @@ public class RedisServer
   private readonly RedisRole                             _role;
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
   private          TcpClient                             _tcpClientToMaster;
+  private          List<Socket>                          _connectedReplicas = [];
 
   private RedisServer(
       ExpiredTasks                          expiredTask,
@@ -145,6 +146,9 @@ public class RedisServer
       if (command is IPostExecutionCommand postExecutionCommand)
       {
         postExecutionCommand.PostExecutionAction?.Invoke(socket);
+
+        // After the PSYNC command is executed, add the replica to the list of connected replicas
+        _connectedReplicas.Add(socket);
       }
     }
 
@@ -176,11 +180,10 @@ public class RedisServer
 
     await SendCommandToMaster("*1\r\n$4\r\nping\r\n");
 
-    await SendCommandToMaster($"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n{
-      _port
-    }\r\n");
+    await SendCommandToMaster($"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n{_port}\r\n");
 
     await SendCommandToMaster("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
+
     await SendCommandToMaster("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n");
   }
 
@@ -196,5 +199,20 @@ public class RedisServer
     var bytesRead = await stream.ReadAsync(buffer);
     var response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
     Console.WriteLine(response);
+  }
+
+  private void AddReplica(Socket replicaSocket)
+  {
+    _connectedReplicas.Add(replicaSocket);
+  }
+
+  public void PropagateCommandToReplicas(string command)
+  {
+    byte[] commandData = Encoding.UTF8.GetBytes(command);
+
+    foreach (var replica in _connectedReplicas)
+    {
+      replica.Send(commandData);
+    }
   }
 }

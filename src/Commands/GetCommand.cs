@@ -9,10 +9,14 @@ namespace codecrafters_redis.Commands;
 
 public class GetCommand : IRespCommand
 {
-  private readonly ConcurrentDictionary<string, byte[ ]> _workingSet;
-  private readonly string                                _name;
   private readonly ExpiredTasks                          _expiredTasks;
-  public GetCommand(ConcurrentDictionary<string, byte[ ]> workingSet, string name, ExpiredTasks expiredTasks)
+  private readonly string                                _name;
+  private readonly ConcurrentDictionary<string, byte[ ]> _workingSet;
+
+  public GetCommand(
+      ConcurrentDictionary<string, byte[ ]> workingSet,
+      string                                name,
+      ExpiredTasks                          expiredTasks)
   {
     _workingSet = workingSet;
     _name = name;
@@ -24,10 +28,11 @@ public class GetCommand : IRespCommand
     if (_expiredTasks.IsExpired(_name))
     {
       _expiredTasks.DeleteKey(_name);
+
       return new RespResponse(RespDataType.Null, string.Empty);
     }
 
-    if (_workingSet.TryGetValue(_name, out byte[ ]? value))
+    if (_workingSet.TryGetValue(_name, out var value))
     {
       return new RespResponse(RespDataType.BulkString, Encoding.UTF8.GetString(value));
     }

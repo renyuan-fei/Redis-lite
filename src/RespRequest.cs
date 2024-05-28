@@ -20,17 +20,19 @@ namespace codecrafters_redis;
 
 public class RespRequest : IRespRequest
 {
-  private readonly byte[ ]         _bytes;
-  public           RespCommandType CommandType { get; private set; }
-  public           List<string>    Arguments   { get; set; } = [];
+  private readonly byte[ ] _bytes;
 
-  private readonly Dictionary<string, RespCommandType> _commandType = RespCommandTypeUtil.CreateCommandTypeDict();
+  private readonly Dictionary<string, RespCommandType> _commandType =
+      RespCommandTypeUtil.CreateCommandTypeDict();
 
   public RespRequest(byte[ ] bytes)
   {
     _bytes = bytes;
     Parse();
   }
+
+  public RespCommandType CommandType { get; private set; }
+  public List<string>    Arguments   { get; set; } = [];
 
   private void Parse()
   {
@@ -54,13 +56,13 @@ public class RespRequest : IRespRequest
     var respArrayString = items.First();
     var arrayLengthString = new string(respArrayString.Skip(1).ToArray());
 
-    if (!int.TryParse(arrayLengthString, out var arrayLength))
-    {
-      Console.WriteLine($"Can not parse {arrayLengthString} to int, Error in RespRequest.cs: GetCommandArrayLength()");
-      throw new Exception($"Can not parse {arrayLengthString} to int");
-    }
+    if (int.TryParse(arrayLengthString, out var arrayLength)) return arrayLength;
 
-    return arrayLength;
+    Console.WriteLine($"Can not parse {
+      arrayLengthString
+    } to int, Error in RespRequest.cs: GetCommandArrayLength()");
+
+    throw new Exception($"Can not parse {arrayLengthString} to int");
   }
 
   private void GetCommandAndArguments(

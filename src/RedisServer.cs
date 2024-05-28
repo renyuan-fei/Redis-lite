@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 
 using codecrafters_redis.Enums;
+using codecrafters_redis.Interface;
 using codecrafters_redis.Service;
 using codecrafters_redis.Type;
 using codecrafters_redis.Utils;
@@ -12,18 +13,17 @@ namespace codecrafters_redis;
 
 public class RedisServer
 {
+  private readonly ExpiredTasks                          _expiredTask;
+  private readonly int                                   _initialTasks;
+  private readonly IPAddress                             _ipAddress;
   private readonly string                                _masterHost;
   private readonly int                                   _masterPort;
   private readonly int                                   _masterReplOffset;
-  private readonly RedisRole                             _role;
-  private readonly IPAddress                             _ipAddress;
-  private readonly int                                   _port;
-  private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
-  private readonly ExpiredTasks                          _expiredTask;
-  private readonly int                                   _initialTasks;
   private readonly int                                   _maxTasks;
+  private readonly int                                   _port;
+  private readonly RedisRole                             _role;
+  private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
   private          TcpClient                             _tcpClientToMaster;
-  public          string                                MasterReplid { get; }
 
   private RedisServer(
       ExpiredTasks                          expiredTask,
@@ -51,6 +51,8 @@ public class RedisServer
     _maxTasks = maxTasks;
   }
 
+  public string MasterReplid { get; }
+
   public static RedisServer Create(
       ExpiredTasks                          expiredTask,
       ConcurrentDictionary<string, byte[ ]> simpleStore,
@@ -72,10 +74,10 @@ public class RedisServer
 
   public async Task StartAsync()
   {
-    TcpListener server = new TcpListener(_ipAddress, _port);
+    var server = new TcpListener(_ipAddress, _port);
 
     // Maximum number of concurrent tasks
-    SemaphoreSlim semaphore = new SemaphoreSlim(_initialTasks, _maxTasks);
+    var semaphore = new SemaphoreSlim(_initialTasks, _maxTasks);
 
     // start server
     try
@@ -91,7 +93,7 @@ public class RedisServer
         await semaphore.WaitAsync();
 
         // create a new socket instance
-        Socket socket = await server.AcceptSocketAsync();
+        var socket = await server.AcceptSocketAsync();
 
         // Process the connection in a separate task
         _ = Task.Run(async () =>
@@ -113,19 +115,19 @@ public class RedisServer
 
   async private Task HandleSocket(Socket socket, ExpiredTasks expiredTask)
   {
-    byte[ ] buffer = new byte[4096];
+    var buffer = new byte[4096];
 
     while (socket.Connected)
     {
       // Use the Poll method to check if the connection is still active
-      bool isConnected = socket.Connected
-                      && !(socket.Poll(1, SelectMode.SelectRead)
-                        && socket.Available == 0);
+      var isConnected = socket.Connected
+                     && !(socket.Poll(1, SelectMode.SelectRead)
+                       && socket.Available == 0);
 
       if (!isConnected) { break; }
 
       // get the data from the socket
-      int received = await socket.ReceiveAsync(buffer, SocketFlags.None);
+      var received = await socket.ReceiveAsync(buffer, SocketFlags.None);
 
       // Check if any data was received
       if (received == 0) { break; }
@@ -134,8 +136,14 @@ public class RedisServer
       var command = factory.Create();
       var response = command.Execute();
 
+      // If the command implements IPostExecutionCommand, execute the PostExecutionAction
+      if (command is IPostExecutionCommand postExecutionCommand)
+      {
+        postExecutionCommand.PostExecutionAction?.Invoke(socket);
+      }
+
       // Encoding the response
-      byte[ ] responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
+      var responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
 
       await socket.SendAsync(responseData, SocketFlags.None);
     }
@@ -146,12 +154,12 @@ public class RedisServer
 
   public string GetInfo()
   {
-    var info = new Dictionary<string, string>()
+    var info = new Dictionary<string, string>
     {
         { "role", _role.ToString().ToLower() },
         // {"connected_slaves", "0"},
         { "master_replid", MasterReplid },
-        { "master_repl_offset", "0" },
+        { "master_repl_offset", "0" }
         // {"second_repl_offset", "-1"},
         // {"repl_backlog_active", "0"},
         // {"repl_backlog_size", "1048576"},
@@ -178,15 +186,15 @@ public class RedisServer
 
   async private Task SendCommandToMaster(string request)
   {
-    NetworkStream stream = _tcpClientToMaster.GetStream();
+    var stream = _tcpClientToMaster.GetStream();
 
-    byte[ ] data = Encoding.ASCII.GetBytes(request);
+    var data = Encoding.ASCII.GetBytes(request);
 
     await stream.WriteAsync(data);
 
-    byte[ ] buffer = new byte[1024];
-    int bytesRead = await stream.ReadAsync(buffer);
-    string response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+    var buffer = new byte[1024];
+    var bytesRead = await stream.ReadAsync(buffer);
+    var response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
     Console.WriteLine(response);
   }
 }

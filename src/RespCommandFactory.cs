@@ -10,9 +10,9 @@ namespace codecrafters_redis;
 public class RespCommandFactory
 {
   private readonly ExpiredTasks                          _expiredTasks;
+  private readonly RedisServer                           _redisServer;
   private readonly RespRequest                           _request;
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
-  private readonly RedisServer                           _redisServer;
 
   public RespCommandFactory(
       byte[ ]                               buffer,
@@ -31,6 +31,7 @@ public class RespCommandFactory
     switch (_request.CommandType)
     {
       case RespCommandType.Ping : return new PingCommand();
+
       case RespCommandType.Echo : return new EchoCommand(_request.Arguments[0]);
 
       case RespCommandType.Set :
@@ -46,7 +47,8 @@ public class RespCommandFactory
 
         return setResult;
 
-      case RespCommandType.Get : return new GetCommand(_simpleStore, _request.Arguments[0], _expiredTasks);
+      case RespCommandType.Get :
+        return new GetCommand(_simpleStore, _request.Arguments[0], _expiredTasks);
 
       case RespCommandType.Info : return new InfoCommand(_redisServer);
 

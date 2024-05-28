@@ -8,9 +8,9 @@ namespace codecrafters_redis.Commands;
 
 public class SetCommand : IRespCommand
 {
-  private readonly ConcurrentDictionary<string, byte[ ]> _workingSet;
   private readonly string                                _name;
   private readonly string                                _value;
+  private readonly ConcurrentDictionary<string, byte[ ]> _workingSet;
 
   public SetCommand(
       ConcurrentDictionary<string, byte[ ]> workingSet,

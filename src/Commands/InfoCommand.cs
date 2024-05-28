@@ -12,6 +12,7 @@ public class InfoCommand : IRespCommand
   public RespResponse Execute()
   {
     var info = _redisServer.GetInfo();
+
     return new RespResponse(RespDataType.BulkString, info);
   }
 }

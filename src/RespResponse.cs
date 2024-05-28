@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-
 using codecrafters_redis.Enums;
 using codecrafters_redis.Interface;
 
@@ -24,7 +22,7 @@ public record RespResponse(RespDataType DataType, string Message) : IRespRespons
       { RespDataType.VerbatimString, '=' },
       { RespDataType.Map, '%' },
       { RespDataType.Set, '~' },
-      { RespDataType.Push, '>' },
+      { RespDataType.Push, '>' }
   };
 
   public string GetCliResponse() { return $"{GetPrefix()}{Message}{Suffix}"; }
@@ -36,12 +34,14 @@ public record RespResponse(RespDataType DataType, string Message) : IRespRespons
     var additionalPrefix = DataType switch
     {
         RespDataType.BulkString => $"{Message.Length}{Suffix}",
-        RespDataType.Null => "-1",
+        RespDataType.Null       => "-1",
         _                       => string.Empty
     };
 
     return string.IsNullOrEmpty(additionalPrefix)
         ? $"{sign}"
-        : $"{sign}{additionalPrefix}";;
+        : $"{sign}{additionalPrefix}";
+
+    ;
   }
 }

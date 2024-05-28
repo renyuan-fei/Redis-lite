@@ -21,16 +21,15 @@ public class PSyncCommand : IRespCommand, IPostExecutionCommand
 
   async private void ExecutionAction(Socket socket)
   {
-    // RDB File in base64 format
-    const string base64Rdb = "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog==";
+    // Binary data for the empty RDB file
+    byte[] rdbFile = Convert.FromBase64String("UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog==");
 
-    // Decimal equivalent of the length based on the number of bytes
-    string lengthInBytes = base64Rdb.Length.ToString();
+    // send the build packet to the client
+    // $<length>\r\n<contents>
+    byte[] packet = Encoding.UTF8.GetBytes($"${rdbFile.Length}\r\n")  // Length of the RDB file (in bytes)
+                            .Concat(rdbFile)           // Content of the RDB file
+                            .ToArray();
 
-    // RDB file format to send
-    string payload = $"${lengthInBytes}\r\n{base64Rdb}\r\n";
-
-    byte[] rdbData = Encoding.ASCII.GetBytes(payload);
-    await socket.SendAsync(rdbData, SocketFlags.None);
+    await socket.SendAsync(packet, SocketFlags.None);
   }
 }

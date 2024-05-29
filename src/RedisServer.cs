@@ -21,7 +21,7 @@ public class RedisServer
   private readonly int                                   _masterReplOffset;
   private readonly int                                   _maxTasks;
   private readonly int                                   _port;
-  private readonly RedisRole                             _role;
+  public           RedisRole                             Role { get; }
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
   private          TcpClient                             _tcpClientToMaster;
   private          ConcurrentBag<Socket>                 _connectedReplicas = [];
@@ -45,7 +45,7 @@ public class RedisServer
     _masterHost = masterHost;
     _expiredTask = expiredTask;
     _simpleStore = simpleStore;
-    _role = role;
+    Role = role;
     MasterReplid = masterReplid;
     _masterReplOffset = masterReplOffset;
     _initialTasks = initialTasks;
@@ -86,7 +86,7 @@ public class RedisServer
       server.Start();
       Console.WriteLine($"Redis-lite server is running on port {_port}");
 
-      if (_role == RedisRole.Slave) { await SendCommandsToMaster(); }
+      if (Role == RedisRole.Slave) { await SendCommandsToMaster(); }
 
       while (true)
       {
@@ -121,7 +121,8 @@ public class RedisServer
     while (socket.Connected)
     {
       // Use the Poll method to check if the connection is still active
-      var isConnected = socket.Connected && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
+      var isConnected = socket.Connected
+                     && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
 
       if (!isConnected) { break; }
 
@@ -135,6 +136,12 @@ public class RedisServer
       var factory = new RespCommandFactory(buffer, _simpleStore, expiredTask, this);
       var command = factory.Create();
       var response = command.Execute();
+
+      // If the command is from the master, we do not send the response back
+      if (Role == RedisRole.Slave)
+      {
+        continue; // Do not send response back to the master
+      }
 
       // Encoding the response
       var responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
@@ -158,7 +165,7 @@ public class RedisServer
   {
     var info = new Dictionary<string, string>
     {
-        { "role", _role.ToString().ToLower() },
+        { "role", Role.ToString().ToLower() },
         // {"connected_slaves", "0"},
         { "master_replid", MasterReplid },
         { "master_repl_offset", "0" }
@@ -203,7 +210,7 @@ public class RedisServer
   {
     string resp = RedisCommandConverter.ToRespFormat(command);
 
-    byte[] commandData = Encoding.UTF8.GetBytes(resp);
+    byte[ ] commandData = Encoding.UTF8.GetBytes(resp);
 
     foreach (var replica in _connectedReplicas)
     {
@@ -218,13 +225,19 @@ public class RedisServer
         }
         catch (Exception ex)
         {
-          Console.WriteLine($"Failed to send command to replica: {ex.Message}, please check the connection");
+          Console.WriteLine($"Failed to send command to replica: {
+            ex.Message
+          }, please check the connection");
+
           _connectedReplicas.TryTake(out socket); // Remove the disconnected replica
         }
       }
       else
       {
-        Console.WriteLine($"Failed to send command to replica: {command}, replica is not connected");
+        Console.WriteLine($"Failed to send command to replica: {
+          command
+        }, replica is not connected");
+
         _connectedReplicas.TryTake(out socket); // Remove the disconnected replica
       }
     }

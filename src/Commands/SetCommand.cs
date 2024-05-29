@@ -33,7 +33,10 @@ public class SetCommand : IRespCommand
     // add new key and value
     if (_workingSet.TryAdd(_name, bytes))
     {
-      _redisServer.PropagateCommandToReplicas($"SET {_name} {_value}");
+      if (_redisServer.Role == RedisRole.Master)
+      {
+        _redisServer.PropagateCommandToReplicas($"SET {_name} {_value}");
+      }
 
       return new RespResponse(RespDataType.SimpleString, "OK");
     }
@@ -41,7 +44,10 @@ public class SetCommand : IRespCommand
     // update existing key
     _workingSet[_name] = bytes;
 
-    _redisServer.PropagateCommandToReplicas($"SET {_name} {_value}");
+    if (_redisServer.Role == RedisRole.Master)
+    {
+      _redisServer.PropagateCommandToReplicas($"SET {_name} {_value}");
+    }
 
     return new RespResponse(RespDataType.SimpleString, "OK");
   }

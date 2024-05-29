@@ -3,6 +3,7 @@ using System.Text;
 
 using codecrafters_redis.Enums;
 using codecrafters_redis.Interface;
+using codecrafters_redis.Utils;
 
 namespace codecrafters_redis.Commands;
 
@@ -32,13 +33,15 @@ public class SetCommand : IRespCommand
     // add new key and value
     if (_workingSet.TryAdd(_name, bytes))
     {
+      _redisServer.PropagateCommandToReplicas($"SET {_name} {_value}");
+
       return new RespResponse(RespDataType.SimpleString, "OK");
     }
 
     // update existing key
     _workingSet[_name] = bytes;
 
-    _redisServer.PropagateCommandToReplicas(new RespResponse(RespDataType.Array, $"SET {_name} {_value}").GetCliResponse());
+    _redisServer.PropagateCommandToReplicas($"SET {_name} {_value}");
 
     return new RespResponse(RespDataType.SimpleString, "OK");
   }

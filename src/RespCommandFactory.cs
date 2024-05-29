@@ -28,6 +28,9 @@ public class RespCommandFactory
 
   public IRespCommand Create()
   {
+    Console.WriteLine($"Parsed command: {_request.CommandType}");
+    Console.WriteLine($"Arguments: {string.Join(", ", _request.Arguments)}");
+
     switch (_request.CommandType)
     {
       case RespCommandType.Ping : return new PingCommand();

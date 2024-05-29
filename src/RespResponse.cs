@@ -25,7 +25,10 @@ public record RespResponse(RespDataType DataType, string Message) : IRespRespons
       { RespDataType.Push, '>' }
   };
 
-  public string GetCliResponse() { return $"{GetPrefix()}{Message}{Suffix}"; }
+  public string GetCliResponse()
+  {
+    return $"{GetPrefix()}{Message}{Suffix}";
+  }
 
   private string GetPrefix()
   {
@@ -40,8 +43,6 @@ public record RespResponse(RespDataType DataType, string Message) : IRespRespons
 
     return string.IsNullOrEmpty(additionalPrefix)
         ? $"{sign}"
-        : $"{sign}{additionalPrefix}";
-
-    ;
+        : $"{sign}{additionalPrefix}";;
   }
 }

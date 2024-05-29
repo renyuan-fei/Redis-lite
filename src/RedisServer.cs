@@ -24,7 +24,7 @@ public class RedisServer
   private readonly RedisRole                             _role;
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
   private          TcpClient                             _tcpClientToMaster;
-  private          List<Socket>                          _connectedReplicas = [];
+  private          ConcurrentBag<Socket>                 _connectedReplicas = [];
 
   private RedisServer(
       ExpiredTasks                          expiredTask,
@@ -121,14 +121,13 @@ public class RedisServer
     while (socket.Connected)
     {
       // Use the Poll method to check if the connection is still active
-      var isConnected = socket.Connected
-                     && !(socket.Poll(1, SelectMode.SelectRead)
-                       && socket.Available == 0);
+      var isConnected = socket.Connected && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
 
       if (!isConnected) { break; }
 
       // get the data from the socket
       var received = await socket.ReceiveAsync(buffer, SocketFlags.None);
+      Console.WriteLine($"Received data: {received}");
 
       // Check if any data was received
       if (received == 0) { break; }
@@ -143,13 +142,12 @@ public class RedisServer
       await socket.SendAsync(responseData, SocketFlags.None);
 
       // If the command implements IPostExecutionCommand, execute the PostExecutionAction
-      if (command is IPostExecutionCommand postExecutionCommand)
-      {
-        postExecutionCommand.PostExecutionAction?.Invoke(socket);
+      if (command is not IPostExecutionCommand postExecutionCommand) continue;
 
-        // After the PSYNC command is executed, add the replica to the list of connected replicas
-        _connectedReplicas.Add(socket);
-      }
+      postExecutionCommand.PostExecutionAction?.Invoke(socket);
+
+      // After the PSYNC command is executed, add the replica to the list of connected replicas
+      _connectedReplicas.Add(socket);
     }
 
     // close the socket after sending the response
@@ -201,18 +199,34 @@ public class RedisServer
     Console.WriteLine(response);
   }
 
-  private void AddReplica(Socket replicaSocket)
+  public async void PropagateCommandToReplicas(string command)
   {
-    _connectedReplicas.Add(replicaSocket);
-  }
+    string resp = RedisCommandConverter.ToRespFormat(command);
 
-  public void PropagateCommandToReplicas(string command)
-  {
-    byte[] commandData = Encoding.UTF8.GetBytes(command);
+    byte[] commandData = Encoding.UTF8.GetBytes(resp);
 
     foreach (var replica in _connectedReplicas)
     {
-      replica.Send(commandData);
+      var socket = replica;
+
+      if (socket.Connected)
+      {
+        try
+        {
+          await replica.SendAsync(commandData);
+          Console.WriteLine($"Command propagated to replica: {resp} ");
+        }
+        catch (Exception ex)
+        {
+          Console.WriteLine($"Failed to send command to replica: {ex.Message}, please check the connection");
+          _connectedReplicas.TryTake(out socket); // Remove the disconnected replica
+        }
+      }
+      else
+      {
+        Console.WriteLine($"Failed to send command to replica: {command}, replica is not connected");
+        _connectedReplicas.TryTake(out socket); // Remove the disconnected replica
+      }
     }
   }
 }

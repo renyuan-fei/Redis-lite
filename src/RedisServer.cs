@@ -24,7 +24,7 @@ public class RedisServer
   public           RedisRole                             Role { get; }
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
   private          TcpClient                             _tcpClientToMaster;
-  private          ConcurrentBag<Socket>                 _connectedReplicas = [];
+  private readonly ConcurrentBag<Socket>                 _connectedReplicas = [];
 
   private RedisServer(
       ExpiredTasks                          expiredTask,
@@ -86,7 +86,10 @@ public class RedisServer
       server.Start();
       Console.WriteLine($"Redis-lite server is running on port {_port}");
 
-      if (Role == RedisRole.Slave) { await SendCommandsToMaster(); }
+      if (Role == RedisRole.Slave)
+      {
+        await SendCommandsToMaster();
+      }
 
       while (true)
       {
@@ -99,8 +102,14 @@ public class RedisServer
         // Process the connection in a separate task
         _ = Task.Run(async () =>
         {
-          try { await HandleSocket(socket, _expiredTask); }
-          finally { semaphore.Release(); }
+          try
+          {
+            await HandleSocket(socket, _expiredTask);
+          }
+          finally
+          {
+            semaphore.Release();
+          }
         });
       }
     }
@@ -121,8 +130,7 @@ public class RedisServer
     while (socket.Connected)
     {
       // Use the Poll method to check if the connection is still active
-      var isConnected = socket.Connected
-                     && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
+      var isConnected = socket.Connected && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
 
       if (!isConnected) { break; }
 
@@ -181,7 +189,22 @@ public class RedisServer
 
   async private Task SendCommandsToMaster()
   {
-    _tcpClientToMaster = new TcpClient(_masterHost, _masterPort);
+    _tcpClientToMaster = new TcpClient();
+
+    while (!_tcpClientToMaster.Connected)
+    {
+      try
+      {
+        await _tcpClientToMaster.ConnectAsync(_masterHost, _masterPort);
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"Failed to connect to master: {ex.Message}");
+        Console.WriteLine("Retrying in 5 seconds...");
+        await Task.Delay(5000);  // 等待5秒后重试
+      }
+    }
+
 
     await SendCommandToMaster("*1\r\n$4\r\nping\r\n");
 
@@ -195,9 +218,7 @@ public class RedisServer
   async private Task SendCommandToMaster(string request)
   {
     var stream = _tcpClientToMaster.GetStream();
-
     var data = Encoding.ASCII.GetBytes(request);
-
     await stream.WriteAsync(data);
 
     var buffer = new byte[1024];

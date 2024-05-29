@@ -130,7 +130,8 @@ public class RedisServer
     while (socket.Connected)
     {
       // Use the Poll method to check if the connection is still active
-      var isConnected = socket.Connected && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
+      var isConnected = socket.Connected;
+                     // && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
 
       if (!isConnected) { break; }
 

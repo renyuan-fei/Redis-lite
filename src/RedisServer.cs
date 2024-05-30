@@ -105,7 +105,7 @@ public class RedisServer
   async private Task InitializeSlaveRoleAsync()
   {
     await ConnectToMasterAsync();
-    await HandleRdbFileAsync(_socketToMaster);
+    // await HandleRdbFileAsync(_socketToMaster);
     await HandleSocketAsync(_socketToMaster, _expiredTask);
   }
 
@@ -113,20 +113,29 @@ public class RedisServer
   {
     while (true)
     {
-      await semaphore.WaitAsync();
-      Socket clientSocket = await server.AcceptSocketAsync();
-
-      _ = Task.Run(async () =>
+      try
       {
-        try
+        // Make sure the number of concurrent tasks does not exceed the maximum
+        await semaphore.WaitAsync();
+        Socket clientSocket = await server.AcceptSocketAsync();
+
+        _ = Task.Run(async () =>
         {
-          await HandleSocketAsync(clientSocket, _expiredTask);
-        }
-        finally
-        {
-          semaphore.Release();
-        }
-      });
+          try
+          {
+            await HandleSocketAsync(clientSocket, _expiredTask);
+          }
+          finally
+          {
+            // Release the semaphore after the task is completed
+            semaphore.Release();
+          }
+        });
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"Error in accepting connections: {ex.Message}");
+      }
     }
   }
 
@@ -227,9 +236,11 @@ public class RedisServer
     await SendCommandToMasterAsync("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
 
     await SendCommandToMasterAsync("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n");
+
+    await HandleRdbFileAsync(_socketToMaster);
   }
 
-  async public Task SendCommandToMasterAsync(string request)
+  async private Task SendCommandToMasterAsync(string request)
   {
     byte[ ] data = Encoding.ASCII.GetBytes(request);
     ArraySegment<byte> sendSegment = new ArraySegment<byte>(data);
@@ -286,5 +297,7 @@ public class RedisServer
     Console.WriteLine(received > 0
                           ? "RDB file data received and being processed."
                           : "No RDB file data received or connection closed.");
+
+    return;
   }
 }

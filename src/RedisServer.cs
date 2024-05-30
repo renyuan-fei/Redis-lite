@@ -25,6 +25,7 @@ public class RedisServer
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
   private          Socket                                _socketToMaster;
   private readonly ConcurrentBag<Socket>                 _connectedReplicas = [];
+  public           string                                MasterReplid { get; }
 
   private RedisServer(
       ExpiredTasks                          expiredTask,
@@ -52,7 +53,6 @@ public class RedisServer
     _maxTasks = maxTasks;
   }
 
-  public string MasterReplid { get; }
 
   public static RedisServer Create(
       ExpiredTasks                          expiredTask,
@@ -86,51 +86,70 @@ public class RedisServer
       server.Start();
       Console.WriteLine($"Redis-lite server is running on port {_port}");
 
-      if (Role == RedisRole.Slave)
-      {
-        await SendCommandsToMaster();
-        await HandleRdbFile(_socketToMaster);
-        await HandleSocket(_socketToMaster, _expiredTask);
-      }
+      if (Role == RedisRole.Slave) { await InitializeSlaveRoleAsync(); }
 
-      while (true)
-      {
-        // Wait for a free slot
-        await semaphore.WaitAsync();
-
-        // create a new socket instance
-        Socket socket = await server.AcceptSocketAsync();
-
-        // Process the connection in a separate task
-        _ = Task.Run(async () =>
-        {
-          try { await HandleSocket(socket, _expiredTask); }
-          finally { semaphore.Release(); }
-        });
-      }
+      await AcceptClientConnections(server, semaphore);
     }
     catch (Exception ex)
     {
       Console.WriteLine(ex.Message);
-
       // Release the semaphore if an exception occurs
       semaphore.Release();
     }
-    finally { server.Stop(); }
+    finally
+    {
+      server.Stop();
+    }
   }
 
-  async private Task HandleSocket(Socket socket, ExpiredTasks expiredTask)
+  async private Task InitializeSlaveRoleAsync()
+  {
+    await ConnectToMasterAsync();
+    await HandleRdbFileAsync(_socketToMaster);
+    await HandleSocketAsync(_socketToMaster, _expiredTask);
+  }
+
+  async private Task AcceptClientConnections(TcpListener server, SemaphoreSlim semaphore)
+  {
+    while (true)
+    {
+      await semaphore.WaitAsync();
+      Socket clientSocket = await server.AcceptSocketAsync();
+
+      _ = Task.Run(async () =>
+      {
+        try
+        {
+          await HandleSocketAsync(clientSocket, _expiredTask);
+        }
+        finally
+        {
+          semaphore.Release();
+        }
+      });
+    }
+  }
+
+  private static bool IsSocketConnected(Socket socket)
+  {
+    // Use the Poll method to check if the connection is still active
+    return socket.Connected && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
+  }
+
+  async private static Task SendResponse(Socket socket, IRespResponse response)
+  {
+    // Encoding the response
+    byte[] responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
+    await socket.SendAsync(responseData, SocketFlags.None);
+  }
+
+  async private Task HandleSocketAsync(Socket socket, ExpiredTasks expiredTask)
   {
     var buffer = new byte[4096];
 
     while (socket.Connected)
     {
-      // Use the Poll method to check if the connection is still active
-      bool isConnected = socket.Connected
-                      && !(socket.Poll(1, SelectMode.SelectRead)
-                        && socket.Available == 0);
-
-      if (!isConnected) { break; }
+      if (!IsSocketConnected(socket)) { break; }
 
       // get the data from the socket
       var received = await socket.ReceiveAsync(buffer, SocketFlags.None);
@@ -139,20 +158,13 @@ public class RedisServer
       if (received == 0) { break; }
 
       RespCommandFactory factory = new RespCommandFactory(buffer, _simpleStore, expiredTask, this);
-
       var command = factory.Create();
       var response = command.Execute();
 
-      // // If the command is from the master, we do not send the response back
-      if (Role == RedisRole.Slave)
-      {
-        continue; // Do not send response back to the master
-      }
+      // If the command is from the master, do not send the response back
+      if (Role == RedisRole.Slave)continue;
 
-      // Encoding the response
-      byte[ ] responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
-
-      await socket.SendAsync(responseData, SocketFlags.None);
+      await SendResponse(socket, response);
 
       // If the command implements IPostExecutionCommand, execute the PostExecutionAction
       if (command is not IPostExecutionCommand postExecutionCommand) continue;
@@ -185,7 +197,7 @@ public class RedisServer
     return string.Join('\n', info.Select(x => $"{x.Key}:{x.Value}"));
   }
 
-  async private Task SendCommandsToMaster()
+  async private Task ConnectToMasterAsync()
   {
     _socketToMaster = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
@@ -199,10 +211,15 @@ public class RedisServer
       {
         Console.WriteLine($"Failed to connect to master: {ex.Message}");
         Console.WriteLine("Retrying in 5 seconds...");
-        await Task.Delay(5000); //wait for 5 seconds before retrying
+        await Task.Delay(5000);
       }
     }
 
+    await SendInitialCommandsToMaster();
+  }
+
+  async private Task SendInitialCommandsToMaster()
+  {
     await SendCommandToMasterAsync("*1\r\n$4\r\nping\r\n");
 
     await SendCommandToMasterAsync($"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n{_port}\r\n");
@@ -210,11 +227,9 @@ public class RedisServer
     await SendCommandToMasterAsync("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
 
     await SendCommandToMasterAsync("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n");
-
-    // handle socket here
   }
 
-  async private Task SendCommandToMasterAsync(string request)
+  async public Task SendCommandToMasterAsync(string request)
   {
     byte[ ] data = Encoding.ASCII.GetBytes(request);
     ArraySegment<byte> sendSegment = new ArraySegment<byte>(data);
@@ -234,54 +249,42 @@ public class RedisServer
 
   public async void PropagateCommandToReplicas(string command)
   {
+    // Convert the command to RESP format
     string resp = RedisCommandConverter.ToRespFormat(command);
-
-    byte[ ] commandData = Encoding.UTF8.GetBytes(resp);
+    byte[] commandData = Encoding.UTF8.GetBytes(resp);
 
     foreach (var replica in _connectedReplicas)
     {
-      var socket = replica;
-
-      if (socket.Connected
-       && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0))
+      if (IsSocketConnected(replica))
       {
         try
         {
-          await socket.SendAsync(commandData);
-          Console.WriteLine($"Command propagated to replica: {resp} ");
+          await replica.SendAsync(commandData, SocketFlags.None);
+          Console.WriteLine($"Command propagated to replica: {command}");
         }
         catch (Exception ex)
         {
-          Console.WriteLine($"Failed to send command to replica: {
-            ex.Message
-          }, please check the connection");
-
-          _connectedReplicas.TryTake(out socket); // Remove the disconnected replica
+          Console.WriteLine($"Failed to send command to replica: {ex.Message}");
+          _connectedReplicas.TryTake(out _);
         }
       }
       else
       {
-        Console.WriteLine($"Failed to send command to replica: {
-          command
-        }, replica is not connected");
-
-        _connectedReplicas.TryTake(out socket); // Remove the disconnected replica
+        Console.WriteLine($"Replica not connected, failed to send command: {command}");
+        _connectedReplicas.TryTake(out _);
       }
     }
   }
-  async private Task HandleRdbFile(Socket socket)
+
+  async private static Task HandleRdbFileAsync(Socket socket)
   {
     byte[] buffer = new byte[4096];
     var received = await socket.ReceiveAsync(buffer, SocketFlags.None);
 
-    if (received > 0)
-    {
-      Console.WriteLine("RDB file data received and being processed.");
-    }
-    else
-    {
-      Console.WriteLine("No RDB file data received or connection closed.");
-    }
-  }
+    // Process the RDB file data
 
+    Console.WriteLine(received > 0
+                          ? "RDB file data received and being processed."
+                          : "No RDB file data received or connection closed.");
+  }
 }

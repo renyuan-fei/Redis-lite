@@ -225,6 +225,7 @@ public class RedisServer
     }
 
     await SendInitialCommandsToMaster();
+    await HandleRdbFileAsync(_socketToMaster);
   }
 
   async private Task SendInitialCommandsToMaster()
@@ -236,8 +237,6 @@ public class RedisServer
     await SendCommandToMasterAsync("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
 
     await SendCommandToMasterAsync("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n");
-
-    await HandleRdbFileAsync(_socketToMaster);
   }
 
   async private Task SendCommandToMasterAsync(string request)

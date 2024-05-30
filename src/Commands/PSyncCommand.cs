@@ -31,5 +31,8 @@ public class PSyncCommand : IRespCommand, IPostExecutionCommand
                             .ToArray();
 
     await socket.SendAsync(packet, SocketFlags.None);
+
+    // Log that the file has been sent
+    Console.WriteLine("RDB file sent to the slave.");
   }
 }

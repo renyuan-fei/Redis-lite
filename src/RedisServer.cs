@@ -23,7 +23,7 @@ public class RedisServer
   private readonly int                                   _port;
   public           RedisRole                             Role { get; }
   private readonly ConcurrentDictionary<string, byte[ ]> _simpleStore;
-  private          TcpClient                             _tcpClientToMaster;
+  private          Socket                                _socketToMaster;
   private readonly ConcurrentBag<Socket>                 _connectedReplicas = [];
 
   private RedisServer(
@@ -75,10 +75,10 @@ public class RedisServer
 
   public async Task StartAsync()
   {
-    var server = new TcpListener(_ipAddress, _port);
+    TcpListener server = new TcpListener(_ipAddress, _port);
 
     // Maximum number of concurrent tasks
-    var semaphore = new SemaphoreSlim(_initialTasks, _maxTasks);
+    SemaphoreSlim semaphore = new SemaphoreSlim(_initialTasks, _maxTasks);
 
     // start server
     try
@@ -89,6 +89,8 @@ public class RedisServer
       if (Role == RedisRole.Slave)
       {
         await SendCommandsToMaster();
+        await HandleRdbFile(_socketToMaster);
+        await HandleSocket(_socketToMaster, _expiredTask);
       }
 
       while (true)
@@ -97,19 +99,13 @@ public class RedisServer
         await semaphore.WaitAsync();
 
         // create a new socket instance
-        var socket = await server.AcceptSocketAsync();
+        Socket socket = await server.AcceptSocketAsync();
 
         // Process the connection in a separate task
         _ = Task.Run(async () =>
         {
-          try
-          {
-            await HandleSocket(socket, _expiredTask);
-          }
-          finally
-          {
-            semaphore.Release();
-          }
+          try { await HandleSocket(socket, _expiredTask); }
+          finally { semaphore.Release(); }
         });
       }
     }
@@ -130,30 +126,31 @@ public class RedisServer
     while (socket.Connected)
     {
       // Use the Poll method to check if the connection is still active
-      var isConnected = socket.Connected;
-                     // && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
+      bool isConnected = socket.Connected
+                      && !(socket.Poll(1, SelectMode.SelectRead)
+                        && socket.Available == 0);
 
       if (!isConnected) { break; }
 
       // get the data from the socket
       var received = await socket.ReceiveAsync(buffer, SocketFlags.None);
-      Console.WriteLine($"Received data: {received}");
 
       // Check if any data was received
       if (received == 0) { break; }
 
-      var factory = new RespCommandFactory(buffer, _simpleStore, expiredTask, this);
+      RespCommandFactory factory = new RespCommandFactory(buffer, _simpleStore, expiredTask, this);
+
       var command = factory.Create();
       var response = command.Execute();
 
-      // If the command is from the master, we do not send the response back
+      // // If the command is from the master, we do not send the response back
       if (Role == RedisRole.Slave)
       {
         continue; // Do not send response back to the master
       }
 
       // Encoding the response
-      var responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
+      byte[ ] responseData = Encoding.UTF8.GetBytes(response.GetCliResponse());
 
       await socket.SendAsync(responseData, SocketFlags.None);
 
@@ -172,7 +169,7 @@ public class RedisServer
 
   public string GetInfo()
   {
-    var info = new Dictionary<string, string>
+    Dictionary<string, string> info = new Dictionary<string, string>
     {
         { "role", Role.ToString().ToLower() },
         // {"connected_slaves", "0"},
@@ -190,41 +187,48 @@ public class RedisServer
 
   async private Task SendCommandsToMaster()
   {
-    _tcpClientToMaster = new TcpClient();
+    _socketToMaster = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
-    while (!_tcpClientToMaster.Connected)
+    while (!_socketToMaster.Connected)
     {
       try
       {
-        await _tcpClientToMaster.ConnectAsync(_masterHost, _masterPort);
+        await _socketToMaster.ConnectAsync(_masterHost, _masterPort);
       }
       catch (Exception ex)
       {
         Console.WriteLine($"Failed to connect to master: {ex.Message}");
         Console.WriteLine("Retrying in 5 seconds...");
-        await Task.Delay(5000);  // 等待5秒后重试
+        await Task.Delay(5000); //wait for 5 seconds before retrying
       }
     }
 
+    await SendCommandToMasterAsync("*1\r\n$4\r\nping\r\n");
 
-    await SendCommandToMaster("*1\r\n$4\r\nping\r\n");
+    await SendCommandToMasterAsync($"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n{_port}\r\n");
 
-    await SendCommandToMaster($"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n{_port}\r\n");
+    await SendCommandToMasterAsync("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
 
-    await SendCommandToMaster("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
+    await SendCommandToMasterAsync("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n");
 
-    await SendCommandToMaster("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n");
+    // handle socket here
   }
 
-  async private Task SendCommandToMaster(string request)
+  async private Task SendCommandToMasterAsync(string request)
   {
-    var stream = _tcpClientToMaster.GetStream();
-    var data = Encoding.ASCII.GetBytes(request);
-    await stream.WriteAsync(data);
+    byte[ ] data = Encoding.ASCII.GetBytes(request);
+    ArraySegment<byte> sendSegment = new ArraySegment<byte>(data);
 
-    var buffer = new byte[1024];
-    var bytesRead = await stream.ReadAsync(buffer);
-    var response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+    // Send data
+    await _socketToMaster.SendAsync(sendSegment, SocketFlags.None);
+
+    byte[ ] buffer = new byte[1024];
+    ArraySegment<byte> receiveSegment = new ArraySegment<byte>(buffer);
+
+    // Receive data
+    int received = await _socketToMaster.ReceiveAsync(receiveSegment, SocketFlags.None);
+
+    string response = Encoding.UTF8.GetString(buffer, 0, received);
     Console.WriteLine(response);
   }
 
@@ -238,11 +242,12 @@ public class RedisServer
     {
       var socket = replica;
 
-      if (socket.Connected)
+      if (socket.Connected
+       && !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0))
       {
         try
         {
-          await replica.SendAsync(commandData);
+          await socket.SendAsync(commandData);
           Console.WriteLine($"Command propagated to replica: {resp} ");
         }
         catch (Exception ex)
@@ -264,4 +269,19 @@ public class RedisServer
       }
     }
   }
+  async private Task HandleRdbFile(Socket socket)
+  {
+    byte[] buffer = new byte[4096];
+    var received = await socket.ReceiveAsync(buffer, SocketFlags.None);
+
+    if (received > 0)
+    {
+      Console.WriteLine("RDB file data received and being processed.");
+    }
+    else
+    {
+      Console.WriteLine("No RDB file data received or connection closed.");
+    }
+  }
+
 }

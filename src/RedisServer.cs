@@ -86,9 +86,14 @@ public class RedisServer
       server.Start();
       Console.WriteLine($"Redis-lite server is running on port {_port}");
 
-      if (Role == RedisRole.Slave) { await ConnectToMasterAsync(); }
-
-      await AcceptClientConnections(server, semaphore);
+      if (Role == RedisRole.Slave)
+      {
+        await ConnectToMasterAsync();
+      }
+      else
+      {
+        await AcceptClientConnections(server, semaphore);
+      }
     }
     catch (Exception ex)
     {
@@ -228,15 +233,11 @@ public class RedisServer
 
     await SendCommandToMasterAsync("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
 
-    await SendCommandToMasterAsync("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n")
-          .ContinueWith(async _ =>
-          {
-            await HandleRdbFileAsync(_socketToMaster);
-          })
-          .ContinueWith(async _ =>
-          {
-            await HandleSocketAsync(_socketToMaster, _expiredTask);
-          });
+    await SendCommandToMasterAsync("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n");
+
+    await HandleRdbFileAsync(_socketToMaster);
+
+    await HandleSocketAsync(_socketToMaster, _expiredTask);
   }
 
   async private Task SendCommandToMasterAsync(string request)
@@ -289,14 +290,18 @@ public class RedisServer
   async private static Task HandleRdbFileAsync(Socket socket)
   {
     byte[] buffer = new byte[4096];
-    var received = await socket.ReceiveAsync(buffer, SocketFlags.None);
+    int received;
 
     // Process the RDB file data
+    while ((received = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None)) > 0)
+    {
+      // 这里处理接收到的 RDB 数据
+      Console.WriteLine($"Received {received} bytes of RDB data, processing...");
+    }
+
 
     Console.WriteLine(received > 0
                           ? "RDB file data received and being processed."
                           : "No RDB file data received or connection closed.");
-
-    return;
   }
 }

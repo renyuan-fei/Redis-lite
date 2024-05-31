@@ -102,13 +102,6 @@ public class RedisServer
     }
   }
 
-  async private Task InitializeSlaveRoleAsync()
-  {
-    await ConnectToMasterAsync();
-    // await HandleRdbFileAsync(_socketToMaster);
-    // await HandleSocketAsync(_socketToMaster, _expiredTask);
-  }
-
   async private Task AcceptClientConnections(TcpListener server, SemaphoreSlim semaphore)
   {
     while (true)
@@ -235,9 +228,15 @@ public class RedisServer
 
     await SendCommandToMasterAsync("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
 
-    await SendCommandToMasterAsync("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n");
-
-    await HandleSocketAsync(_socketToMaster, _expiredTask);
+    await SendCommandToMasterAsync("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n")
+          .ContinueWith(async _ =>
+          {
+            await HandleRdbFileAsync(_socketToMaster);
+          })
+          .ContinueWith(async _ =>
+          {
+            await HandleSocketAsync(_socketToMaster, _expiredTask);
+          });
   }
 
   async private Task SendCommandToMasterAsync(string request)
@@ -255,14 +254,7 @@ public class RedisServer
     int received = await _socketToMaster.ReceiveAsync(receiveSegment, SocketFlags.None);
 
     string response = Encoding.UTF8.GetString(buffer, 0, received);
-
     Console.WriteLine(response);
-
-    // Check for FULLRESYNC and handle RDB data immediately
-    if (response.StartsWith("+FULLRESYNC"))
-    {
-      await HandleRdbFileAsync(_socketToMaster);
-    }
   }
 
   public async void PropagateCommandToReplicas(string command)

@@ -86,14 +86,9 @@ public class RedisServer
       server.Start();
       Console.WriteLine($"Redis-lite server is running on port {_port}");
 
-      if (Role == RedisRole.Slave)
-      {
-        await ConnectToMasterAsync();
-      }
-      else
-      {
-        await AcceptClientConnections(server, semaphore);
-      }
+      if (Role == RedisRole.Slave) { await ConnectToMasterAsync(); }
+
+      await AcceptClientConnections(server, semaphore);
     }
     catch (Exception ex)
     {
@@ -290,15 +285,9 @@ public class RedisServer
   async private static Task HandleRdbFileAsync(Socket socket)
   {
     byte[] buffer = new byte[4096];
-    int received;
+    var received = await socket.ReceiveAsync(buffer, SocketFlags.None);
 
     // Process the RDB file data
-    while ((received = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None)) > 0)
-    {
-      // 这里处理接收到的 RDB 数据
-      Console.WriteLine($"Received {received} bytes of RDB data, processing...");
-    }
-
 
     Console.WriteLine(received > 0
                           ? "RDB file data received and being processed."

@@ -237,8 +237,6 @@ public class RedisServer
 
     await SendCommandToMasterAsync("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n");
 
-    await HandleRdbFileAsync(_socketToMaster);
-
     await HandleSocketAsync(_socketToMaster, _expiredTask);
   }
 
@@ -257,7 +255,14 @@ public class RedisServer
     int received = await _socketToMaster.ReceiveAsync(receiveSegment, SocketFlags.None);
 
     string response = Encoding.UTF8.GetString(buffer, 0, received);
+
     Console.WriteLine(response);
+
+    // Check for FULLRESYNC and handle RDB data immediately
+    if (response.StartsWith("+FULLRESYNC"))
+    {
+      await HandleRdbFileAsync(_socketToMaster);
+    }
   }
 
   public async void PropagateCommandToReplicas(string command)

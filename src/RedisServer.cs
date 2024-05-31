@@ -86,7 +86,7 @@ public class RedisServer
       server.Start();
       Console.WriteLine($"Redis-lite server is running on port {_port}");
 
-      if (Role == RedisRole.Slave) { await InitializeSlaveRoleAsync(); }
+      if (Role == RedisRole.Slave) { await ConnectToMasterAsync(); }
 
       await AcceptClientConnections(server, semaphore);
     }
@@ -106,6 +106,7 @@ public class RedisServer
   {
     await ConnectToMasterAsync();
     // await HandleRdbFileAsync(_socketToMaster);
+    // await HandleSocketAsync(_socketToMaster, _expiredTask);
   }
 
   async private Task AcceptClientConnections(TcpListener server, SemaphoreSlim semaphore)
